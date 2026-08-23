@@ -14,7 +14,7 @@ export function StatusStrip({ cashInPaise, exceptionCount }: StatusStripProps) {
       <span className="text-muted">
         <span className="text-text">{exceptionCount}</span> {exLabel}
       </span>
-      <span className="ml-auto text-muted">graph · synced just now</span>
+      <span className="ml-auto text-muted">graph</span>
     </div>
   );
 }

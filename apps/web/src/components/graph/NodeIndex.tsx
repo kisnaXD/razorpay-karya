@@ -23,12 +23,7 @@ export function NodeIndex({
   return (
     <section className="flex min-h-0 flex-col border-l border-line" aria-label="Node index">
       <header className="border-b border-line px-4 py-2">
-        <h2 className="text-[15px] font-medium text-text">Graph index</h2>
-        <p className="text-[12px] text-muted">
-          Neighborhood of{" "}
-          <span className="font-mono text-signal">SalesOrder:SO-218</span>{" "}
-          highlighted.
-        </p>
+        <h2 className="text-[15px] font-medium text-text">Index</h2>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
         {types.map((type) => {

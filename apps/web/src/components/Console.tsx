@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { NodeIndex } from "@/components/graph/NodeIndex";
 import { ExceptionList } from "@/components/inbox/ExceptionList";
 import { AgentRail } from "@/components/shell/AgentRail";
@@ -22,6 +22,17 @@ type ConsoleState = {
   nodes: ApiNode[];
   neighborhoodKeys: Set<string>;
 };
+
+function CanvasHeader({ orgLabel }: { orgLabel: string | null }) {
+  return (
+    <header className="flex shrink-0 items-baseline gap-3 border-b border-line px-4 py-3">
+      <span className="font-display text-[20px] italic text-text">Karya</span>
+      {orgLabel ? (
+        <span className="text-[12px] text-muted">{orgLabel}</span>
+      ) : null}
+    </header>
+  );
+}
 
 export function Console() {
   const [state, setState] = useState<ConsoleState | null>(null);
@@ -83,57 +94,51 @@ export function Console() {
     return map;
   }, [state]);
 
+  const exceptionCount = state?.bootstrap.exceptionCount ?? 0;
+  const cashInPaise = state?.bootstrap.cashInPaise ?? 0;
+  const orgLabel = state?.bootstrap.org.label ?? null;
+
+  let canvasBody: ReactNode;
   if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-ink px-6 text-muted">
-        <p>
-          Console offline — {error}. Start the API on port 4000, then reload.
-        </p>
+    canvasBody = (
+      <p className="px-4 py-3 text-muted">
+        {error} — start the API on port 4000, then reload.
+      </p>
+    );
+  } else if (!state) {
+    canvasBody = <p className="px-4 py-3 text-muted">Loading graph…</p>;
+  } else {
+    canvasBody = (
+      <div className="grid min-h-0 flex-1 grid-cols-2">
+        <ExceptionList
+          exceptions={state.exceptions}
+          nodeKeyById={nodeKeyById}
+          selectedKey={selectedKey}
+          onSelect={setSelectedKey}
+        />
+        <NodeIndex
+          nodes={state.nodes}
+          neighborhoodKeys={state.neighborhoodKeys}
+          selectedKey={selectedKey}
+        />
       </div>
     );
   }
-
-  if (!state) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-ink text-muted">
-        Loading graph…
-      </div>
-    );
-  }
-
-  const { bootstrap, exceptions, nodes, neighborhoodKeys } = state;
 
   return (
     <AppShell
-      nav={<NavRail exceptionCount={bootstrap.exceptionCount} />}
+      nav={<NavRail exceptionCount={exceptionCount} />}
       canvas={
         <div className="flex h-full min-h-0 flex-col">
-          <header className="flex shrink-0 items-baseline gap-3 border-b border-line px-4 py-3">
-            <span className="font-display text-[18px] italic text-text">
-              Karya
-            </span>
-            <span className="text-[12px] text-muted">{bootstrap.org.label}</span>
-          </header>
-          <div className="grid min-h-0 flex-1 grid-cols-2">
-            <ExceptionList
-              exceptions={exceptions}
-              nodeKeyById={nodeKeyById}
-              selectedKey={selectedKey}
-              onSelect={setSelectedKey}
-            />
-            <NodeIndex
-              nodes={nodes}
-              neighborhoodKeys={neighborhoodKeys}
-              selectedKey={selectedKey}
-            />
-          </div>
+          <CanvasHeader orgLabel={orgLabel} />
+          {canvasBody}
         </div>
       }
-      agent={<AgentRail exceptionCount={bootstrap.exceptionCount} />}
+      agent={<AgentRail exceptionCount={exceptionCount} />}
       status={
         <StatusStrip
-          cashInPaise={bootstrap.cashInPaise}
-          exceptionCount={bootstrap.exceptionCount}
+          cashInPaise={cashInPaise}
+          exceptionCount={exceptionCount}
         />
       }
     />

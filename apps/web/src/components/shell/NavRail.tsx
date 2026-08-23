@@ -23,7 +23,11 @@ export function NavRail({ exceptionCount }: NavRailProps) {
             aria-disabled={disabled || undefined}
             className={[
               "relative flex h-10 w-10 items-center justify-center border-0 bg-transparent",
-              active ? "text-copper" : disabled ? "text-muted/50" : "text-muted",
+              active
+                ? "border-l-[2px] border-l-copper text-text"
+                : disabled
+                  ? "text-muted/50"
+                  : "text-muted",
             ].join(" ")}
             tabIndex={disabled ? -1 : 0}
           >

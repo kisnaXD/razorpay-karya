@@ -17,9 +17,6 @@ export function ExceptionList({
     <section className="flex min-h-0 flex-col" aria-label="Exceptions">
       <header className="border-b border-line px-4 py-2">
         <h2 className="text-[15px] font-medium text-text">Inbox</h2>
-        <p className="text-[12px] text-muted">
-          Operational exceptions across the graph.
-        </p>
       </header>
       <ul className="min-h-0 flex-1 overflow-y-auto">
         {exceptions.map((ex) => {
