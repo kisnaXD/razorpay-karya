@@ -3,12 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "eslint src"
   },
+  "dependencies": {
+    "@karya/graph": "workspace:*"
+  },
   "devDependencies": {
+    "mongodb": "^6.16.0",
+    "mongodb-memory-server": "^10.1.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
   }

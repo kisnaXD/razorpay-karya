@@ -205,6 +205,11 @@ function stockPromiseRisk(
             if (shipStatus === "received" || shipStatus === "delivered") {
               continue;
             }
+            if (shipStatus === "delayed") {
+              blockingPo = po;
+              blockingShipment = shipment;
+              continue;
+            }
             if (!poInboundCounted) {
               inbound += poQty;
               poInboundCounted = true;
@@ -217,14 +222,25 @@ function stockPromiseRisk(
 
       if (promisedQty > available + inbound) {
         const skuName = sku.label;
-        let detail = `${so.label}'s ${promisedQty}× ${skuName} cannot be fulfilled with ${available} available`;
-        if (blockingPo) {
-          detail += ` and is blocked by late material on ${blockingPo.label}`;
-          if (blockingShipment) {
-            detail += ` (${blockingShipment.label} delayed)`;
+        const buyerEdge = edges.find(
+          (e) => e.type === "BUYS" && e.toId === so._id,
+        );
+        const buyer = buyerEdge ? nodeById.get(buyerEdge.fromId) : undefined;
+        const promiseDate = propString(so.props, "promise_date");
+
+        let detail: string;
+        if (buyer && blockingPo && promiseDate) {
+          detail = `${buyer.label}'s ${promisedQty}× ${skuName} promised ${promiseDate} is blocked by late brass on ${blockingPo.label}.`;
+        } else {
+          detail = `${so.label}'s ${promisedQty}× ${skuName} cannot be fulfilled with ${available} available`;
+          if (blockingPo) {
+            detail += ` and is blocked by late material on ${blockingPo.label}`;
+            if (blockingShipment) {
+              detail += ` (${blockingShipment.label} delayed)`;
+            }
           }
+          detail += ".";
         }
-        detail += ".";
 
         results.push({
           id: newExceptionId("stock.promise_risk", `${so._id}_${sku._id}`),
