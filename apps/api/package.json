@@ -4,12 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node -e \"console.log('@karya/api dev — implemented in Task 5')\"",
+    "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "eslint src"
   },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@karya/graph": "workspace:*",
+    "@karya/seed": "workspace:*",
+    "fastify": "^5.3.2",
+    "mongodb": "^6.16.0",
+    "zod": "^3.24.4"
+  },
   "devDependencies": {
+    "@types/node": "^22.15.21",
+    "mongodb-memory-server": "^10.1.4",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
   }
