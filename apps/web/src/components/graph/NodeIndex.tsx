@@ -1,0 +1,66 @@
+import type { ApiNode } from "@/lib/api";
+
+type NodeIndexProps = {
+  nodes: ApiNode[];
+  neighborhoodKeys: Set<string>;
+  selectedKey: string | null;
+};
+
+export function NodeIndex({
+  nodes,
+  neighborhoodKeys,
+  selectedKey,
+}: NodeIndexProps) {
+  const grouped = new Map<string, ApiNode[]>();
+  for (const node of nodes) {
+    const list = grouped.get(node.type) ?? [];
+    list.push(node);
+    grouped.set(node.type, list);
+  }
+
+  const types = [...grouped.keys()].sort();
+
+  return (
+    <section className="flex min-h-0 flex-col border-l border-line" aria-label="Node index">
+      <header className="border-b border-line px-4 py-2">
+        <h2 className="text-[15px] font-medium text-text">Graph index</h2>
+        <p className="text-[12px] text-muted">
+          Neighborhood of{" "}
+          <span className="font-mono text-signal">SalesOrder:SO-218</span>{" "}
+          highlighted.
+        </p>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+        {types.map((type) => {
+          const typeNodes = grouped.get(type) ?? [];
+          typeNodes.sort((a, b) => a.key.localeCompare(b.key));
+          return (
+            <div key={type} className="mb-4">
+              <h3 className="mb-1 text-[11px] uppercase tracking-[0.08em] text-muted">
+                {type}
+              </h3>
+              <ul>
+                {typeNodes.map((node) => {
+                  const inHood = neighborhoodKeys.has(node.key);
+                  const selected = selectedKey === node.key;
+                  return (
+                    <li
+                      key={node.key}
+                      className={[
+                        "font-mono text-[12px] leading-[1.6]",
+                        inHood ? "text-signal" : "text-muted",
+                        selected ? "bg-surface-2 px-1 -mx-1" : "",
+                      ].join(" ")}
+                    >
+                      {node.key}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
