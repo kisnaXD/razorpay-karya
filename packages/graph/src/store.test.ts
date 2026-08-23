@@ -238,6 +238,124 @@ describe("GraphStore", () => {
     expect(codes).toContain("shipment.delayed");
   });
 
+  it("exceptions() returns po.late for a late purchase order", async () => {
+    await store.upsertNode(
+      node("PurchaseOrder:PO-late", "PurchaseOrder", "PO-late", {
+        status: "late",
+        expectedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+      }),
+    );
+    const ex = await store.exceptions(ORG);
+    expect(ex.some((e) => e.code === "po.late")).toBe(true);
+  });
+
+  it("exceptions() returns payment.uncollected for sent payments", async () => {
+    await store.upsertNode(
+      node("Payment:plink-test", "Payment", "plink-test", {
+        status: "sent",
+        channel: "payment_link",
+      }),
+    );
+    const ex = await store.exceptions(ORG);
+    expect(ex.some((e) => e.code === "payment.uncollected")).toBe(true);
+  });
+
+  it("exceptions() returns stock.promise_risk when promised qty exceeds availability", async () => {
+    const skuA = await store.upsertNode(node("SKU:Risk-A", "SKU", "Risk A"));
+    const skuB = await store.upsertNode(node("SKU:Risk-B", "SKU", "Risk B"));
+    const stockA = await store.upsertNode(
+      node("Stock:Risk-A@Shop", "Stock", "Risk A stock", {
+        on_hand: 5,
+        reserved: 2,
+      }),
+    );
+    const so = await store.upsertNode(
+      node("SalesOrder:SO-risk", "SalesOrder", "SO-risk", { status: "promised" }),
+    );
+
+    const write = (
+      type: Parameters<GraphStore["writeEdge"]>[0]["type"],
+      fromId: string,
+      toId: string,
+      props: Record<string, string | number | boolean | null> = {},
+    ) =>
+      store.writeEdge({
+        _id: newEdgeId(),
+        orgId: ORG,
+        type,
+        fromId,
+        toId,
+        props,
+        validFrom: new Date(),
+      });
+
+    await write("STOCK_OF", stockA._id, skuA._id);
+    await write("ORDER_CONTAINS", so._id, skuA._id, { qty: 8 });
+    await write("ORDER_CONTAINS", so._id, skuB._id, { qty: 4 });
+
+    const ex = await store.exceptions(ORG);
+    const risks = ex.filter((e) => e.code === "stock.promise_risk");
+    expect(risks).toHaveLength(2);
+    expect(new Set(risks.map((e) => e.id)).size).toBe(2);
+    expect(risks.every((e) => e.nodeId === so._id)).toBe(true);
+  });
+
+  it("exceptions() counts inbound PO qty once with multiple fulfillments", async () => {
+    const material = await store.upsertNode(
+      node("Material:Brass-Test", "Material", "Brass test"),
+    );
+    const sku = await store.upsertNode(node("SKU:Covered-SKU", "SKU", "Covered SKU"));
+    const stock = await store.upsertNode(
+      node("Stock:Covered@Shop", "Stock", "Covered stock", {
+        on_hand: 2,
+        reserved: 0,
+      }),
+    );
+    const po = await store.upsertNode(
+      node("PurchaseOrder:PO-inbound", "PurchaseOrder", "PO-inbound", {
+        status: "open",
+      }),
+    );
+    const shipA = await store.upsertNode(
+      node("Shipment:IN-A", "Shipment", "IN-A", { status: "in_transit" }),
+    );
+    const shipB = await store.upsertNode(
+      node("Shipment:IN-B", "Shipment", "IN-B", { status: "in_transit" }),
+    );
+    const so = await store.upsertNode(
+      node("SalesOrder:SO-covered", "SalesOrder", "SO-covered", {
+        status: "promised",
+      }),
+    );
+
+    const write = (
+      type: Parameters<GraphStore["writeEdge"]>[0]["type"],
+      fromId: string,
+      toId: string,
+      props: Record<string, string | number | boolean | null> = {},
+    ) =>
+      store.writeEdge({
+        _id: newEdgeId(),
+        orgId: ORG,
+        type,
+        fromId,
+        toId,
+        props,
+        validFrom: new Date(),
+      });
+
+    await write("MADE_FROM", sku._id, material._id);
+    await write("STOCK_OF", stock._id, sku._id);
+    await write("ORDER_CONTAINS", po._id, material._id, { qty: 10 });
+    await write("FULFILLS", shipA._id, po._id);
+    await write("FULFILLS", shipB._id, po._id);
+    await write("ORDER_CONTAINS", so._id, sku._id, { qty: 5 });
+
+    const ex = await store.exceptions(ORG);
+    const risk = ex.find((e) => e.code === "stock.promise_risk");
+    expect(risk).toBeUndefined();
+  });
+
   it("TimeSlice before supersede returns the old qty", async () => {
     const sku = await store.upsertNode(node("SKU:Time-Slice", "SKU", "Time Slice"));
     const stock = await store.upsertNode(

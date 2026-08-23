@@ -195,6 +195,7 @@ function stockPromiseRisk(
             continue;
           }
 
+          let poInboundCounted = false;
           for (const f of fulfillments) {
             const shipment = nodeById.get(f.fromId);
             if (!shipment || shipment.type !== "Shipment") {
@@ -204,7 +205,10 @@ function stockPromiseRisk(
             if (shipStatus === "received" || shipStatus === "delivered") {
               continue;
             }
-            inbound += poQty;
+            if (!poInboundCounted) {
+              inbound += poQty;
+              poInboundCounted = true;
+            }
             blockingPo = po;
             blockingShipment = shipment;
           }
@@ -223,7 +227,7 @@ function stockPromiseRisk(
         detail += ".";
 
         results.push({
-          id: newExceptionId("stock.promise_risk", so._id),
+          id: newExceptionId("stock.promise_risk", `${so._id}_${sku._id}`),
           severity: "risk",
           code: "stock.promise_risk",
           nodeId: so._id,
