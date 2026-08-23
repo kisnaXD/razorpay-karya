@@ -10,6 +10,8 @@ import { StatusStrip } from "@/components/shell/StatusStrip";
 import {
   api,
   seedOnceIfEmpty,
+  neighborhoodKeysFrom,
+  neighborhoodPath,
   type ApiException,
   type ApiNode,
   type Bootstrap,
@@ -51,20 +53,14 @@ export function Console() {
             api<Bootstrap>("/v1/bootstrap"),
             api<{ exceptions: ApiException[] }>("/v1/exceptions"),
             api<{ nodes: ApiNode[] }>("/v1/nodes"),
-            api<Neighborhood>(
-              "/v1/neighborhood?key=SalesOrder:SO-218&depth=2",
-            ).catch(() => null),
+            api<Neighborhood>(neighborhoodPath("SalesOrder:SO-218", 2)).catch(
+              () => null,
+            ),
           ]);
 
         if (cancelled) return;
 
-        const neighborhoodKeys = new Set<string>();
-        if (neighborhood) {
-          neighborhoodKeys.add(neighborhood.center.key);
-          for (const node of neighborhood.nodes) {
-            neighborhoodKeys.add(node.key);
-          }
-        }
+        const neighborhoodKeys = neighborhoodKeysFrom(neighborhood);
 
         setState({
           bootstrap,

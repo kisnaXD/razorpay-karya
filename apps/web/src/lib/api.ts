@@ -42,7 +42,5 @@ export type Bootstrap = {
   cashInPaise: number;
 };
 
-export type Neighborhood = {
-  center: ApiNode;
-  nodes: ApiNode[];
-};
+export type { Neighborhood } from "./neighborhood.js";
+export { neighborhoodKeysFrom, neighborhoodPath } from "./neighborhood.js";
