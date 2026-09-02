@@ -12,6 +12,39 @@
   --color-signal: var(--signal);
   --color-risk: var(--risk);
   --color-warn: var(--warn);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  --spacing-rail: 56px;
+  --spacing-agent: 360px;
+  --spacing-strip: 32px;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -20,11 +53,37 @@ body {
   background: var(--ink);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--type-base);
 }
 
-* {
-  box-sizing: border-box;
+*:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--signal);
+  color: white;
+}
+
+/* Light theme — toggled via html.light (TopBar theme control) */
+html.light {
+  --ink: #ffffff;
+  --surface: #f8f9fa;
+  --surface-2: #f0f1f3;
+  --line: #e2e4e8;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --signal: #2563eb;
+  --copper: #d97706;
+  --teal: #0d9488;
+  --risk: #dc2626;
+  --warn: #d97706;
+}
+
+html.light ::selection {
+  background: color-mix(in srgb, var(--signal) 28%, transparent);
+  color: var(--text);
 }
 
 .font-display {
@@ -37,4 +96,19 @@ body {
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.25s ease-out both;
 }

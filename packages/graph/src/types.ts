@@ -76,6 +76,17 @@ export type EdgeRecord = {
 export type GraphFilter = { at?: Date };
 
 export type ExceptionSeverity = "risk" | "warn";
+
+export type InboxAction = {
+  id: string;
+  label: string;
+  kind: "agent_prompt" | "navigate";
+  payload: {
+    message?: string;
+    nodeKey?: string;
+  };
+};
+
 export type Exception = {
   id: string;
   severity: ExceptionSeverity;
@@ -84,10 +95,19 @@ export type Exception = {
     | "shipment.delayed"
     | "invoice.overdue"
     | "payment.uncollected"
+    | "payment.failure"
+    | "collections.escalated"
     | "po.late";
   nodeId: string;
   title: string;
   detail: string;
+  /** Graph node key when known (e.g. Invoice:INV-104). */
+  nodeKey?: string;
+  why?: string;
+  recommendation?: string;
+  actions?: InboxAction[];
+  domain?: "finance" | "procurement" | "sales" | "inventory";
+  priority?: "critical" | "high" | "medium" | "low";
 };
 
 export type { Db };

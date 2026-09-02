@@ -1,0 +1,19 @@
+# Caddy for API-only EC2 (frontend hosted on Vercel).
+# Routes /health, /v1/*, /a2a/* to Fastify; no Next.js upstream.
+{$CADDY_SITE::80} {
+	encode gzip
+
+	handle /health {
+		reverse_proxy api:4000
+	}
+
+	handle /v1/* {
+		reverse_proxy api:4000
+	}
+
+	handle /a2a/* {
+		reverse_proxy api:4000
+	}
+
+	respond "Karya API" 200
+}

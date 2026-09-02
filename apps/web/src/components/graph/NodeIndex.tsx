@@ -4,12 +4,14 @@ type NodeIndexProps = {
   nodes: ApiNode[];
   neighborhoodKeys: Set<string>;
   selectedKey: string | null;
+  onSelect?: (key: string) => void;
 };
 
 export function NodeIndex({
   nodes,
   neighborhoodKeys,
   selectedKey,
+  onSelect,
 }: NodeIndexProps) {
   const grouped = new Map<string, ApiNode[]>();
   for (const node of nodes) {
@@ -21,7 +23,10 @@ export function NodeIndex({
   const types = [...grouped.keys()].sort();
 
   return (
-    <section className="flex min-h-0 flex-col border-l border-line" aria-label="Node index">
+    <section
+      className="flex min-h-0 flex-col border-l border-line"
+      aria-label="Node index"
+    >
       <header className="border-b border-line px-4 py-2">
         <h2 className="text-[15px] font-medium text-text">Index</h2>
       </header>
@@ -39,15 +44,19 @@ export function NodeIndex({
                   const inHood = neighborhoodKeys.has(node.key);
                   const selected = selectedKey === node.key;
                   return (
-                    <li
-                      key={node.key}
-                      className={[
-                        "font-mono text-[12px] leading-[1.6]",
-                        inHood ? "text-signal" : "text-muted",
-                        selected ? "bg-surface-2 px-1 -mx-1" : "",
-                      ].join(" ")}
-                    >
-                      {node.key}
+                    <li key={node.key}>
+                      <button
+                        type="button"
+                        onClick={() => onSelect?.(node.key)}
+                        className={[
+                          "w-full text-left font-mono text-[12px] leading-[1.6]",
+                          inHood ? "text-signal" : "text-muted",
+                          selected ? "bg-surface-2 px-1 -mx-1" : "hover:text-text",
+                          onSelect ? "cursor-pointer border-0 bg-transparent" : "",
+                        ].join(" ")}
+                      >
+                        {node.key}
+                      </button>
                     </li>
                   );
                 })}

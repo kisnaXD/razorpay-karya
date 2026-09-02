@@ -1,0 +1,27 @@
+# Reverse proxy for Karya production (EC2 + Docker Compose).
+# CADDY_SITE examples:
+#   karya-demo.example.com   (auto TLS when DNS points here)
+#   :80                      (HTTP on Elastic IP — fine for judges)
+{$CADDY_SITE::80} {
+	encode gzip
+
+	# API health (no org header required)
+	handle /health {
+		reverse_proxy api:4000
+	}
+
+	# Fastify GraphStore + Razorpay webhooks + agent routes
+	handle /v1/* {
+		reverse_proxy api:4000
+	}
+
+	# Agent-to-agent commerce (ACP-inspired)
+	handle /a2a/* {
+		reverse_proxy api:4000
+	}
+
+	# Next.js console
+	handle {
+		reverse_proxy web:3000
+	}
+}

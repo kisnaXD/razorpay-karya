@@ -1,4 +1,4 @@
-import type { ApiNode } from "./api.js";
+import type { ApiNode } from "./api";
 
 /** Matches GET /v1/neighborhood — GraphStore returns center separately from nodes. */
 export type Neighborhood = {

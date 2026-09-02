@@ -1,27 +1,36 @@
 import type { ReactNode } from "react";
 
 type AppShellProps = {
-  nav: ReactNode;
-  canvas: ReactNode;
-  agent: ReactNode;
-  status: ReactNode;
+  sidebar: ReactNode;
+  topbar: ReactNode;
+  content: ReactNode;
+  dock: ReactNode;
+  sidebarExpanded?: boolean;
 };
 
-export function AppShell({ nav, canvas, agent, status }: AppShellProps) {
+export function AppShell({
+  sidebar,
+  topbar,
+  content,
+  dock,
+  sidebarExpanded = true,
+}: AppShellProps) {
+  const sidebarWidth = sidebarExpanded ? "240px" : "56px";
+
   return (
     <div
-      className="grid h-screen bg-ink text-text"
+      className="grid h-screen bg-ink text-text transition-[grid-template-columns] duration-200"
       style={{
-        gridTemplateColumns: "56px 1fr 360px",
-        gridTemplateRows: "1fr 32px",
+        gridTemplateColumns: `${sidebarWidth} 1fr`,
+        gridTemplateRows: "48px 1fr",
       }}
     >
-      <aside className="row-span-2 border-r border-line bg-surface">{nav}</aside>
-      <main className="min-h-0 overflow-hidden border-r border-line bg-ink">
-        {canvas}
-      </main>
-      <aside className="min-h-0 overflow-hidden bg-surface">{agent}</aside>
-      <footer className="col-span-2 border-t border-line bg-surface">{status}</footer>
+      <div className="col-span-2 min-h-0">{topbar}</div>
+      <aside className="min-h-0 overflow-hidden border-r border-line bg-surface">
+        {sidebar}
+      </aside>
+      <main className="relative min-h-0 overflow-auto bg-ink">{content}</main>
+      {dock}
     </div>
   );
 }

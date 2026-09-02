@@ -8,7 +8,7 @@ export const seedRoutes: FastifyPluginAsync<{ env: Env }> = async (app, opts) =>
       return reply.code(403).send({ error: "seed disabled outside development" });
     }
 
-    const result = await seedArkaAtelier(app.store);
+    const result = await seedArkaAtelier(app.store, app.db);
     return result;
   });
 };

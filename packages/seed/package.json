@@ -12,10 +12,12 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@karya/graph": "workspace:*"
+    "@karya/graph": "workspace:*",
+    "mongodb": "^6.16.0",
+    "ulid": "^3.0.0"
   },
   "devDependencies": {
-    "mongodb": "^6.16.0",
+    "@karya/policy": "workspace:*",
     "mongodb-memory-server": "^10.1.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"

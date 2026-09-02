@@ -2,7 +2,9 @@
   "name": "karya",
   "private": true,
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @karya/api --filter @karya/web dev",
     "test": "pnpm -r test",
@@ -14,6 +16,7 @@
     "@typescript-eslint/parser": "^8.32.0",
     "eslint": "^8.57.1",
     "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }
 }

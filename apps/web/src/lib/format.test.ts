@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatCash } from "./format.js";
+import { formatInr, orderStatusTone } from "./format.js";
 
-describe("formatCash", () => {
+describe("formatInr", () => {
   it("formats lakhs from paise", () => {
-    expect(formatCash(42000000)).toBe("₹4.20L");
+    expect(formatInr(42000000)).toBe("₹4.20L");
   });
 
   it("formats thousands from paise", () => {
-    expect(formatCash(125000)).toBe("₹1.3K");
+    expect(formatInr(1480000)).toBe("₹14.8k");
+  });
+});
+
+describe("orderStatusTone", () => {
+  it("maps late to warn", () => {
+    expect(orderStatusTone("late")).toBe("warn");
   });
 });

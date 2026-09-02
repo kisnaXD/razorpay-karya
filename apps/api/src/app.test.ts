@@ -9,6 +9,7 @@ import {
   it,
 } from "vitest";
 import { GraphStore } from "@karya/graph";
+import { ensureApprovalIndexes } from "./mongo.js";
 import { buildApp } from "./app.js";
 import type { Env } from "./env.js";
 import type { FastifyInstance } from "fastify";
@@ -20,6 +21,9 @@ const testEnv: Env = {
   API_PORT: 4000,
   WEB_ORIGIN: "http://localhost:3000",
   NODE_ENV: "development",
+  PAYOUT_PROVIDER: "ledger",
+  A2A_ORG_ID: "org_arka",
+  OPENAI_MODEL: "gpt-4o-mini",
 };
 
 let mongo: MongoMemoryServer;
@@ -45,7 +49,8 @@ beforeEach(async () => {
   await db.dropDatabase();
   store = new GraphStore(db);
   await store.ensureIndexes();
-  app = await buildApp({ store, env: testEnv, logger: false });
+  await ensureApprovalIndexes(db);
+  app = await buildApp({ store, db, env: testEnv, logger: false });
 });
 
 function orgHeaders(extra: Record<string, string> = {}) {
@@ -142,6 +147,7 @@ describe("@karya/api", () => {
   it("POST /v1/admin/seed is forbidden outside development", async () => {
     const prodApp = await buildApp({
       store,
+      db,
       env: { ...testEnv, NODE_ENV: "production" },
       logger: false,
     });

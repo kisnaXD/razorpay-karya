@@ -94,6 +94,13 @@ export class GraphStore {
     return this.nodes.find(query).toArray();
   }
 
+  async listEdges(
+    orgId: string,
+    filter?: GraphFilter,
+  ): Promise<EdgeRecord[]> {
+    return this.loadActiveEdges(orgId, filter);
+  }
+
   async writeEdge(
     input: Omit<EdgeRecord, "createdAt" | "validTo"> & { validTo?: null },
   ): Promise<EdgeRecord> {

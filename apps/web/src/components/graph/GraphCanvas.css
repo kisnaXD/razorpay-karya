@@ -1,0 +1,82 @@
+.react-flow {
+  background: var(--surface-2);
+}
+
+.react-flow__node,
+.react-flow__node-karya {
+  overflow: visible;
+}
+
+.react-flow__edge-path {
+  stroke: var(--signal);
+  stroke-width: 1;
+}
+
+.react-flow__edge.highlighted .react-flow__edge-path {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+.react-flow__edge.faded .react-flow__edge-path {
+  opacity: 0.3;
+}
+
+.react-flow__minimap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.karya-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+@keyframes exception-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+.exception-pulse {
+  border-radius: 8px;
+  animation: exception-pulse 2s ease-in-out infinite;
+}
+
+.karya-node-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 80px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.karya-node[data-selected="true"] .shape-fill {
+  stroke: var(--copper);
+  stroke-width: 2;
+}
+
+.shape-exception-risk .shape-fill {
+  stroke: var(--risk);
+  stroke-width: 2;
+}
+
+.shape-exception-warn .shape-fill {
+  stroke: var(--warn);
+  stroke-width: 2;
+}
+
+.payment-fill {
+  fill: var(--teal);
+  stroke: var(--teal);
+}

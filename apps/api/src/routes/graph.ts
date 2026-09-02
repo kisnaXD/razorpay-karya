@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { GraphStore, NodeRecord, NodeType } from "@karya/graph";
-import { NODE_TYPES } from "@karya/graph";
+import { NODE_TYPES, buildMorningBriefing } from "@karya/graph";
 
 function notFound(reply: { code: (n: number) => { send: (b: unknown) => unknown } }) {
   return reply.code(404).send({ error: "not found" });
@@ -129,6 +129,18 @@ export const graphRoutes: FastifyPluginAsync = async (app) => {
   app.get("/v1/exceptions", async (request) => {
     const exceptions = await app.store.exceptions(request.orgId);
     return { exceptions };
+  });
+
+  app.get("/v1/inbox", async (request) => {
+    const exceptions = await app.store.exceptions(request.orgId);
+    const briefing = buildMorningBriefing(exceptions);
+    return { exceptions, briefing };
+  });
+
+  app.get("/v1/inbox/briefing", async (request) => {
+    const exceptions = await app.store.exceptions(request.orgId);
+    const briefing = buildMorningBriefing(exceptions);
+    return { briefing };
   });
 
   app.get("/v1/bootstrap", async (request, reply) => {

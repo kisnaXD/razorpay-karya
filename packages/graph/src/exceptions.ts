@@ -1,5 +1,6 @@
 import type { EdgeRecord, Exception, NodeRecord } from "./types.js";
 import { newExceptionId } from "./ids.js";
+import { enrichExceptions } from "./inbox-enrichment.js";
 
 function propString(props: NodeRecord["props"], key: string): string | null {
   const value = props[key];
@@ -40,7 +41,7 @@ function invoiceOverdue(node: NodeRecord, now: Date): Exception | null {
 
   return {
     id: newExceptionId("invoice.overdue", node._id),
-    severity: "warn",
+    severity: "risk",
     code: "invoice.overdue",
     nodeId: node._id,
     title: `${node.label} is overdue`,
@@ -106,8 +107,9 @@ function paymentUncollected(node: NodeRecord): Exception | null {
   if (node.type !== "Payment") {
     return null;
   }
+  // Only waiting links — expired/failed are covered by payment.failure
   const status = propString(node.props, "status");
-  if (status !== "sent" && status !== "expired" && status !== "failed") {
+  if (status !== "sent") {
     return null;
   }
 
@@ -118,6 +120,192 @@ function paymentUncollected(node: NodeRecord): Exception | null {
     nodeId: node._id,
     title: `${node.label} not collected`,
     detail: `Payment ${node.label} was sent but has not been collected.`,
+  };
+}
+
+type PaymentFailureImpact = {
+  invoiceLabel: string | null;
+  salesOrderLabel: string | null;
+  buyerLabel: string | null;
+  skuLabel: string | null;
+  reservedQty: number;
+  promiseDate: string | null;
+  leadLabel: string | null;
+  amountInPaise: number;
+};
+
+function walkPaymentFailureImpact(
+  payment: NodeRecord,
+  nodes: NodeRecord[],
+  edges: EdgeRecord[],
+): PaymentFailureImpact {
+  const nodeById = new Map(nodes.map((n) => [n._id, n]));
+  const amountInPaise = propNumber(payment.props, "amountInPaise");
+
+  let invoice: NodeRecord | null = null;
+  let salesOrder: NodeRecord | null = null;
+  let buyer: NodeRecord | null = null;
+  let sku: NodeRecord | null = null;
+  let stock: NodeRecord | null = null;
+  let lead: NodeRecord | null = null;
+
+  const pays = edges.find(
+    (e) =>
+      e.type === "PAYS" && e.fromId === payment._id && e.validTo === null,
+  );
+  if (pays) {
+    invoice = nodeById.get(pays.toId) ?? null;
+  }
+
+  if (invoice) {
+    const invoices = edges.find(
+      (e) =>
+        e.type === "INVOICES" &&
+        e.fromId === invoice!._id &&
+        e.validTo === null,
+    );
+    if (invoices) {
+      salesOrder = nodeById.get(invoices.toId) ?? null;
+    }
+  }
+
+  if (salesOrder) {
+    const buys = edges.find(
+      (e) =>
+        e.type === "BUYS" && e.toId === salesOrder!._id && e.validTo === null,
+    );
+    if (buys) {
+      buyer = nodeById.get(buys.fromId) ?? null;
+    }
+    const line = edges.find(
+      (e) =>
+        e.type === "ORDER_CONTAINS" &&
+        e.fromId === salesOrder!._id &&
+        e.validTo === null,
+    );
+    if (line) {
+      sku = nodeById.get(line.toId) ?? null;
+    }
+  }
+
+  if (sku) {
+    const stockEdge = edges.find(
+      (e) =>
+        e.type === "STOCK_OF" && e.toId === sku!._id && e.validTo === null,
+    );
+    if (stockEdge) {
+      stock = nodeById.get(stockEdge.fromId) ?? null;
+    }
+    const listingEdge = edges.find(
+      (e) => e.type === "LISTS" && e.toId === sku!._id && e.validTo === null,
+    );
+    if (listingEdge) {
+      const listing = nodeById.get(listingEdge.fromId);
+      if (listing) {
+        const sourced = edges.find(
+          (e) =>
+            e.type === "SOURCED_FROM" &&
+            e.toId === listing._id &&
+            e.validTo === null,
+        );
+        if (sourced) {
+          lead = nodeById.get(sourced.fromId) ?? null;
+        }
+      }
+    }
+  }
+
+  return {
+    invoiceLabel: invoice?.label ?? null,
+    salesOrderLabel: salesOrder?.label ?? null,
+    buyerLabel: buyer?.label ?? null,
+    skuLabel: sku?.label ?? null,
+    reservedQty: stock ? propNumber(stock.props, "reserved") : 0,
+    promiseDate: salesOrder
+      ? propString(salesOrder.props, "promise_date")
+      : null,
+    leadLabel: lead?.label ?? null,
+    amountInPaise,
+  };
+}
+
+function formatInrFull(paise: number): string {
+  const rupees = paise / 100;
+  return `₹${rupees.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+function buildShortFailureDetail(impact: PaymentFailureImpact): string {
+  const amount =
+    impact.amountInPaise > 0 ? formatInrFull(impact.amountInPaise) : null;
+  const buyer = impact.buyerLabel ?? "Customer";
+  const invoice = impact.invoiceLabel ?? "invoice";
+  const so = impact.salesOrderLabel;
+  const sku = impact.skuLabel ?? "SKU";
+  const qty = impact.reservedQty;
+  const promise = impact.promiseDate;
+  const lead = impact.leadLabel;
+
+  // Locked: detail must name SO / INV / lead when present for demo + tests.
+  let detail = `${buyer}'s ${amount ? `${amount} ` : ""}link for ${invoice} expired`;
+  if (so && promise) {
+    detail += ` — ${so}'s ${qty}× ${sku} still reserved for ${promise}`;
+  } else if (so) {
+    detail += ` — ${so} stock still reserved`;
+  }
+  if (lead) {
+    detail += `; ${lead} is next in line`;
+  }
+  detail += ".";
+  return detail;
+}
+
+function paymentFailure(
+  node: NodeRecord,
+  nodes: NodeRecord[],
+  edges: EdgeRecord[],
+): Exception | null {
+  if (node.type !== "Payment") {
+    return null;
+  }
+  const status = propString(node.props, "status");
+  if (status !== "expired" && status !== "failed") {
+    return null;
+  }
+
+  const impact = walkPaymentFailureImpact(node, nodes, edges);
+  const detail = buildShortFailureDetail(impact);
+
+  return {
+    id: newExceptionId("payment.failure", node._id),
+    severity: "risk",
+    code: "payment.failure",
+    nodeId: node._id,
+    title: `${node.label} ${status}`,
+    detail,
+  };
+}
+
+function collectionsEscalated(node: NodeRecord): Exception | null {
+  if (node.type !== "Invoice") {
+    return null;
+  }
+  const status = propString(node.props, "status");
+  if (status === "paid" || status === "void") {
+    return null;
+  }
+  const nudgeCount = propNumber(node.props, "nudge_count");
+  if (nudgeCount < 3) {
+    return null;
+  }
+
+  return {
+    id: newExceptionId("collections.escalated", node._id),
+    severity: "risk",
+    code: "collections.escalated",
+    nodeId: node._id,
+    title: `${node.label} — collections escalated`,
+    detail:
+      "Three payment nudges sent; manual follow-up required before another link.",
   };
 }
 
@@ -167,6 +355,7 @@ function stockPromiseRisk(
 
       for (const matEdge of materials) {
         const materialId = matEdge.toId;
+        const kgPerUnit = propNumber(matEdge.props, "qty");
         const poEdges = edges.filter(
           (e) =>
             e.type === "ORDER_CONTAINS" &&
@@ -185,12 +374,14 @@ function stockPromiseRisk(
           }
 
           const poQty = propNumber(poEdge.props, "qty");
+          const inboundSkuUnits =
+            kgPerUnit > 0 ? poQty / kgPerUnit : poQty;
           const fulfillments = edges.filter(
             (e) => e.type === "FULFILLS" && e.toId === po._id,
           );
 
           if (fulfillments.length === 0) {
-            inbound += poQty;
+            inbound += inboundSkuUnits;
             blockingPo = po;
             continue;
           }
@@ -211,7 +402,7 @@ function stockPromiseRisk(
               continue;
             }
             if (!poInboundCounted) {
-              inbound += poQty;
+              inbound += inboundSkuUnits;
               poInboundCounted = true;
             }
             blockingPo = po;
@@ -270,6 +461,8 @@ export function evaluateExceptions(
       shipmentDelayed(node, now),
       poLate(node, now),
       paymentUncollected(node),
+      paymentFailure(node, nodes, edges),
+      collectionsEscalated(node),
     ];
     for (const ex of checks) {
       if (ex) {
@@ -279,5 +472,11 @@ export function evaluateExceptions(
   }
 
   results.push(...stockPromiseRisk(nodes, edges));
-  return results;
+
+  const nodeById = new Map(nodes.map((n) => [n._id, n]));
+  const withKeys = results.map((ex) => ({
+    ...ex,
+    nodeKey: nodeById.get(ex.nodeId)?.key ?? ex.nodeId,
+  }));
+  return enrichExceptions(withKeys);
 }

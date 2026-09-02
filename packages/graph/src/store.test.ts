@@ -205,13 +205,17 @@ describe("GraphStore", () => {
   });
 
   it("neighborhood depth 2 from SO-218 reaches Meenakshi Brass after seed-shaped writes", async () => {
-    const { so218, meenakshi } = await seedBeatingHeart();
+    const { so218, meenakshi, po104, in77 } = await seedBeatingHeart();
     const n = await store.neighborhood(ORG, so218._id, 2);
     const keys = n.nodes.map((x) => x.key);
     expect(keys).toContain("Org:Meenakshi-Brass");
+    expect(keys).toContain("PurchaseOrder:PO-104");
+    expect(keys).toContain("Shipment:IN-77");
     expect(n.center.key).toBe("SalesOrder:SO-218");
     expect(n.center._id).toBe(so218._id);
     expect(meenakshi._id).toBeDefined();
+    expect(po104._id).toBeDefined();
+    expect(in77._id).toBeDefined();
   });
 
   it("path(SO-218, Meenakshi Brass) is non-null", async () => {
@@ -389,5 +393,13 @@ describe("GraphStore", () => {
     const n = await store.neighborhood(ORG, stock._id, 1, { at: sliceAt });
     const stockEdge = n.edges.find((e) => e.type === "STOCK_OF");
     expect(stockEdge?.props.qty).toBe(10);
+  });
+
+  it("listEdges returns active edges for org", async () => {
+    await seedBeatingHeart();
+    const edges = await store.listEdges(ORG);
+    expect(edges.length).toBeGreaterThan(5);
+    expect(edges.every((e) => e.validTo === null)).toBe(true);
+    expect(edges.some((e) => e.type === "MADE_FROM")).toBe(true);
   });
 });
