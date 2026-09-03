@@ -72,11 +72,14 @@ export const agentRoutes: FastifyPluginAsync<PluginOpts> = async (
         return reply.code(400).send({ error: "invalid_body" });
       }
 
+      const origin = (request.headers.origin as string) ?? "";
       reply.hijack();
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
       });
 
       try {
