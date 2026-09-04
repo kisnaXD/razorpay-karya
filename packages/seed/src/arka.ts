@@ -11,6 +11,10 @@ function daysAgo(n: number): string {
   return new Date(Date.now() - n * DAY_MS).toISOString();
 }
 
+function daysFromNow(n: number): string {
+  return new Date(Date.now() + n * DAY_MS).toISOString();
+}
+
 function nextFriday(): string {
   const now = new Date();
   const day = now.getDay();
@@ -18,6 +22,16 @@ function nextFriday(): string {
   const friday = new Date(now);
   friday.setDate(now.getDate() + daysUntilFriday);
   return "Friday";
+}
+
+function nextMonday0900Ist(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun … 1=Mon
+  const daysUntil = (1 - day + 7) % 7 || 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + daysUntil);
+  monday.setUTCHours(3, 30, 0, 0); // 09:00 IST
+  return monday.toISOString();
 }
 
 function nearestThursday1600Ist(): string {
@@ -115,6 +129,42 @@ export async function seedArkaAtelier(
       city: "Mumbai",
     }),
   );
+  const rangoli = await store.upsertNode(
+    node("Org:Rangoli-Retail", "Org", "Rangoli Retail", {
+      role: "customer",
+      city: "Delhi",
+      note: "Loyal wholesale buyer — Diwali surge orders",
+    }),
+  );
+  const artisanHouse = await store.upsertNode(
+    node("Org:Artisan-House", "Org", "Artisan House", {
+      role: "customer",
+      city: "Bengaluru",
+      note: "New boutique — first order",
+    }),
+  );
+  const craftCentral = await store.upsertNode(
+    node("Org:Craft-Central", "Org", "Craft Central", {
+      role: "customer",
+      city: "Pune",
+      note: "Repeat buyer — often pays late",
+    }),
+  );
+  const heritageGallery = await store.upsertNode(
+    node("Org:Heritage-Gallery", "Org", "Heritage Gallery", {
+      role: "customer",
+      city: "Udaipur",
+      note: "Premium buyer — always on time",
+    }),
+  );
+  const diwaliBazaar = await store.upsertNode(
+    node("Org:Diwali-Bazaar", "Org", "Diwali Bazaar", {
+      role: "customer",
+      city: "Online",
+      channel: "d2c",
+      note: "Seasonal surge buyer — Instagram/D2C",
+    }),
+  );
   const delhivery = await store.upsertNode(
     node("Org:Delhivery", "Org", "Delhivery", { role: "courier" }),
   );
@@ -122,6 +172,34 @@ export async function seedArkaAtelier(
     node("Material:BrassSheet-22g", "Material", "Brass sheet 22g", {
       uom: "kg",
       reorder_point: 15,
+    }),
+  );
+  const brassRod = await store.upsertNode(
+    node("Material:BrassRod-8mm", "Material", "Brass rod 8mm", {
+      uom: "kg",
+      reorder_point: 8,
+      note: "For handles, temple bells",
+    }),
+  );
+  const copperSheet = await store.upsertNode(
+    node("Material:CopperSheet-20g", "Material", "Copper sheet 20g", {
+      uom: "kg",
+      reorder_point: 5,
+      note: "Accent pieces and inlays",
+    }),
+  );
+  const juteCord = await store.upsertNode(
+    node("Material:JuteCord-3mm", "Material", "Jute cord 3mm", {
+      uom: "m",
+      reorder_point: 100,
+      note: "Packaging and decor ties",
+    }),
+  );
+  const lacquer = await store.upsertNode(
+    node("Material:Lacquer-Clear", "Material", "Clear lacquer", {
+      uom: "ltr",
+      reorder_point: 2,
+      note: "Finishing coat",
     }),
   );
   const diya = await store.upsertNode(
@@ -135,18 +213,66 @@ export async function seedArkaAtelier(
       ]),
     }),
   );
-  await store.upsertNode(
+  const castBlank = await store.upsertNode(
     node("SKU:Cast-Blank-Diya-5in", "SKU", "Cast Blank Diya 5in", {
       priceInPaise: 14500,
     }),
   );
-  await store.upsertNode(
+  const diyaSmall = await store.upsertNode(
     node("SKU:Diya-Small", "SKU", "Diya-Small-3inch", {
       priceInPaise: 95000,
     }),
   );
   const tray = await store.upsertNode(
     node("SKU:Tray-Oval", "SKU", "Tray-Oval", { priceInPaise: 240000 }),
+  );
+  const urli = await store.upsertNode(
+    node("SKU:Urli-Round-8in", "SKU", "Urli-Round-8in", {
+      priceInPaise: 320000,
+      gst: 12,
+      lead_days: 7,
+      description: "Decorative brass water bowl, 8-inch round, hammered finish.",
+    }),
+  );
+  const lamp = await store.upsertNode(
+    node("SKU:Lamp-Hanging-Brass", "SKU", "Lamp-Hanging-Brass", {
+      priceInPaise: 450000,
+      gst: 12,
+      lead_days: 10,
+      description: "Handcrafted brass pendant lamp for boutique interiors.",
+    }),
+  );
+  const incense = await store.upsertNode(
+    node("SKU:Incense-Holder-Lotus", "SKU", "Incense-Holder-Lotus", {
+      priceInPaise: 85000,
+      gst: 12,
+      lead_days: 4,
+      description: "Lotus-motif brass incense holder.",
+    }),
+  );
+  const bell = await store.upsertNode(
+    node("SKU:Bell-Temple-6in", "SKU", "Bell-Temple-6in", {
+      priceInPaise: 180000,
+      gst: 12,
+      lead_days: 6,
+      description: "6-inch temple bell cast from brass rod stock.",
+    }),
+  );
+  const thali = await store.upsertNode(
+    node("SKU:Thali-Pooja-Set", "SKU", "Thali-Pooja-Set", {
+      priceInPaise: 550000,
+      gst: 12,
+      lead_days: 8,
+      description: "Premium pooja thali set of 5 brass items.",
+    }),
+  );
+  const candleStand = await store.upsertNode(
+    node("SKU:Candle-Stand-3tier", "SKU", "Candle-Stand-3tier", {
+      priceInPaise: 280000,
+      gst: 12,
+      lead_days: 6,
+      description: "Three-tier brass candle stand for festive displays.",
+    }),
   );
   const workshop = await store.upsertNode(
     node("Location:Workshop", "Location", "Workshop"),
@@ -165,11 +291,111 @@ export async function seedArkaAtelier(
       reserved: 0,
     }),
   );
+  const diyaSmallStock = await store.upsertNode(
+    node("Stock:Diya-Small@Workshop", "Stock", "Diya-Small @ Workshop", {
+      on_hand: 85,
+      reserved: 40,
+      incoming: 0,
+    }),
+  );
+  const castBlankStock = await store.upsertNode(
+    node("Stock:Cast-Blank-Diya-5in@Workshop", "Stock", "Cast Blank @ Workshop", {
+      on_hand: 180,
+      reserved: 0,
+      incoming: 0,
+    }),
+  );
+  const urliStock = await store.upsertNode(
+    node("Stock:Urli-Round-8in@Workshop", "Stock", "Urli-Round @ Workshop", {
+      on_hand: 3,
+      reserved: 5,
+      incoming: 0,
+      note: "Negative available — Rangoli surge overcommitted",
+    }),
+  );
+  const lampStock = await store.upsertNode(
+    node("Stock:Lamp-Hanging-Brass@Workshop", "Stock", "Lamp-Hanging @ Workshop", {
+      on_hand: 4,
+      reserved: 4,
+      incoming: 0,
+    }),
+  );
+  const incenseStock = await store.upsertNode(
+    node("Stock:Incense-Holder-Lotus@Workshop", "Stock", "Incense-Holder @ Workshop", {
+      on_hand: 42,
+      reserved: 6,
+      incoming: 0,
+    }),
+  );
+  const bellStock = await store.upsertNode(
+    node("Stock:Bell-Temple-6in@Workshop", "Stock", "Bell-Temple @ Workshop", {
+      on_hand: 0,
+      reserved: 0,
+      incoming: 12,
+      note: "Stockout — rods inbound on PO-105 path",
+    }),
+  );
+  const thaliStock = await store.upsertNode(
+    node("Stock:Thali-Pooja-Set@Workshop", "Stock", "Thali-Pooja @ Workshop", {
+      on_hand: 14,
+      reserved: 2,
+      incoming: 0,
+    }),
+  );
+  const candleStock = await store.upsertNode(
+    node("Stock:Candle-Stand-3tier@Workshop", "Stock", "Candle-Stand @ Workshop", {
+      on_hand: 6,
+      reserved: 8,
+      incoming: 10,
+    }),
+  );
   const po104 = await store.upsertNode(
     node("PurchaseOrder:PO-104", "PurchaseOrder", "PO-104", {
       status: "late",
       expectedAt: daysAgo(4),
       qty: 40,
+      amountInPaise: 2720000,
+      vendorKey: "Org:Meenakshi-Brass",
+    }),
+  );
+  const po105 = await store.upsertNode(
+    node("PurchaseOrder:PO-105", "PurchaseOrder", "PO-105", {
+      status: "delivered",
+      expectedAt: daysAgo(8),
+      deliveredAt: daysAgo(9),
+      qty: 25,
+      amountInPaise: 1875000,
+      vendorKey: "Org:Shree-Metal-Works",
+      note: "On-time brass rod delivery",
+    }),
+  );
+  const po106 = await store.upsertNode(
+    node("PurchaseOrder:PO-106", "PurchaseOrder", "PO-106", {
+      status: "in_transit",
+      expectedAt: daysFromNow(2),
+      qty: 10,
+      amountInPaise: 950000,
+      vendorKey: "Org:Jaipur-Alloys",
+    }),
+  );
+  const po107 = await store.upsertNode(
+    node("PurchaseOrder:PO-107", "PurchaseOrder", "PO-107", {
+      status: "draft",
+      expectedAt: daysFromNow(12),
+      qty: 60,
+      amountInPaise: 4080000,
+      vendorKey: "Org:Meenakshi-Brass",
+      note: "Pending approval — Diwali buffer stock; Meenakshi reliability concerns",
+    }),
+  );
+  const po108 = await store.upsertNode(
+    node("PurchaseOrder:PO-108", "PurchaseOrder", "PO-108", {
+      status: "ordered",
+      expectedAt: daysFromNow(5),
+      qty: 50,
+      amountInPaise: 3400000,
+      vendorKey: "Org:Shree-Metal-Works",
+      note: "Emergency brass for Rangoli SO-220 — preferred vendor",
     }),
   );
   const in77 = await store.upsertNode(
@@ -177,6 +403,37 @@ export async function seedArkaAtelier(
       direction: "inbound",
       status: "delayed",
       delay_days: 4,
+    }),
+  );
+  const in78 = await store.upsertNode(
+    node("Shipment:IN-78", "Shipment", "IN-78", {
+      direction: "inbound",
+      status: "in_transit",
+      etaAt: daysFromNow(2),
+      carrier: "Delhivery",
+    }),
+  );
+  const out44 = await store.upsertNode(
+    node("Shipment:OUT-44", "Shipment", "OUT-44", {
+      direction: "outbound",
+      status: "delivered",
+      deliveredAt: daysAgo(5),
+      carrier: "Delhivery",
+    }),
+  );
+  const out45 = await store.upsertNode(
+    node("Shipment:OUT-45", "Shipment", "OUT-45", {
+      direction: "outbound",
+      status: "packing",
+      carrier: "Delhivery",
+    }),
+  );
+  const out46 = await store.upsertNode(
+    node("Shipment:OUT-46", "Shipment", "OUT-46", {
+      direction: "outbound",
+      status: "shipped",
+      shippedAt: daysAgo(1),
+      carrier: "Delhivery",
     }),
   );
   const so218 = await store.upsertNode(
@@ -190,6 +447,96 @@ export async function seedArkaAtelier(
     node("SalesOrder:SO-201", "SalesOrder", "SO-201", {
       status: "packing",
       channel: "d2c",
+    }),
+  );
+  const so220 = await store.upsertNode(
+    node("SalesOrder:SO-220", "SalesOrder", "SO-220", {
+      status: "promised",
+      promise_date: daysFromNow(10),
+      qty: 55,
+      orderedAt: daysAgo(0),
+      amountInPaise: 17600000,
+      note: "Rangoli Diwali surge — strains Urli + brass inventory",
+    }),
+  );
+  const so221 = await store.upsertNode(
+    node("SalesOrder:SO-221", "SalesOrder", "SO-221", {
+      status: "delivered",
+      promise_date: daysAgo(6),
+      deliveredAt: daysAgo(5),
+      qty: 50,
+      orderedAt: daysAgo(18),
+      amountInPaise: 27500000,
+      note: "Heritage Gallery premium Diwali stock-up",
+    }),
+  );
+  const so222 = await store.upsertNode(
+    node("SalesOrder:SO-222", "SalesOrder", "SO-222", {
+      status: "shipped",
+      promise_date: daysAgo(1),
+      shippedAt: daysAgo(1),
+      qty: 10,
+      orderedAt: daysAgo(12),
+      amountInPaise: 2400000,
+    }),
+  );
+  const so223 = await store.upsertNode(
+    node("SalesOrder:SO-223", "SalesOrder", "SO-223", {
+      status: "promised",
+      promise_date: daysFromNow(14),
+      qty: 4,
+      orderedAt: daysAgo(1),
+      amountInPaise: 850000,
+      note: "Artisan House first order — starter assortment",
+    }),
+  );
+  const so224 = await store.upsertNode(
+    node("SalesOrder:SO-224", "SalesOrder", "SO-224", {
+      status: "packing",
+      channel: "d2c",
+      promise_date: daysFromNow(3),
+      qty: 40,
+      orderedAt: daysAgo(2),
+      amountInPaise: 3800000,
+    }),
+  );
+  const so225 = await store.upsertNode(
+    node("SalesOrder:SO-225", "SalesOrder", "SO-225", {
+      status: "delivered",
+      promise_date: daysAgo(10),
+      deliveredAt: daysAgo(9),
+      qty: 12,
+      orderedAt: daysAgo(21),
+      amountInPaise: 2160000,
+    }),
+  );
+  const so226 = await store.upsertNode(
+    node("SalesOrder:SO-226", "SalesOrder", "SO-226", {
+      status: "shipped",
+      promise_date: daysAgo(2),
+      shippedAt: daysAgo(2),
+      qty: 4,
+      orderedAt: daysAgo(14),
+      amountInPaise: 1800000,
+    }),
+  );
+  const so227 = await store.upsertNode(
+    node("SalesOrder:SO-227", "SalesOrder", "SO-227", {
+      status: "cancelled",
+      qty: 6,
+      orderedAt: daysAgo(7),
+      cancelledAt: daysAgo(5),
+      amountInPaise: 1680000,
+      note: "Craft Central cancelled — payment terms dispute",
+    }),
+  );
+  const so228 = await store.upsertNode(
+    node("SalesOrder:SO-228", "SalesOrder", "SO-228", {
+      status: "packing",
+      promise_date: daysFromNow(4),
+      qty: 8,
+      orderedAt: daysAgo(3),
+      amountInPaise: 2240000,
     }),
   );
   const inv90 = await store.upsertNode(
@@ -212,10 +559,106 @@ export async function seedArkaAtelier(
       failure_at: null,
     }),
   );
+  const inv91 = await store.upsertNode(
+    node("Invoice:INV-91", "Invoice", "INV-91", {
+      status: "paid",
+      amountInPaise: 27500000,
+      dueAt: daysAgo(7),
+      paidAt: daysAgo(8),
+      collections_state: "paid",
+    }),
+  );
+  const pay91 = await store.upsertNode(
+    node("Payment:pay_91", "Payment", "pay_91", {
+      status: "captured",
+      channel: "neft",
+      amountInPaise: 27500000,
+      paidAt: daysAgo(8),
+    }),
+  );
+  const inv92 = await store.upsertNode(
+    node("Invoice:INV-92", "Invoice", "INV-92", {
+      status: "sent",
+      amountInPaise: 2160000,
+      dueAt: daysFromNow(3),
+      sentAt: daysAgo(4),
+      collections_state: "awaiting",
+    }),
+  );
+  const inv93 = await store.upsertNode(
+    node("Invoice:INV-93", "Invoice", "INV-93", {
+      status: "overdue",
+      amountInPaise: 2400000,
+      dueAt: daysAgo(2),
+      nudge_count: 2,
+      last_nudge_at: daysAgo(1),
+      collections_state: "nudge_sent",
+      note: "Craft Central — chronic late payer; cash flow pinch",
+    }),
+  );
+  const inv94 = await store.upsertNode(
+    node("Invoice:INV-94", "Invoice", "INV-94", {
+      status: "paid",
+      amountInPaise: 1800000,
+      dueAt: daysAgo(4),
+      paidAt: daysAgo(5),
+      collections_state: "paid",
+    }),
+  );
+  const pay94 = await store.upsertNode(
+    node("Payment:pay_94", "Payment", "pay_94", {
+      status: "captured",
+      channel: "upi",
+      amountInPaise: 1800000,
+      paidAt: daysAgo(5),
+    }),
+  );
+  const inv95 = await store.upsertNode(
+    node("Invoice:INV-95", "Invoice", "INV-95", {
+      status: "draft",
+      amountInPaise: 850000,
+      dueAt: daysFromNow(21),
+      collections_state: "draft",
+      note: "Artisan House first invoice — not yet sent",
+    }),
+  );
   const lead = await store.upsertNode(
     node("Lead:IG-Ananya", "Lead", "IG-Ananya", {
       channel: "instagram",
       status: "open",
+    }),
+  );
+  const leadPriya = await store.upsertNode(
+    node("Lead:WhatsApp-Priya", "Lead", "WhatsApp-Priya", {
+      channel: "whatsapp",
+      status: "warm",
+      city: "Chennai",
+      note: "Asked about Urli-Round wholesale pricing",
+    }),
+  );
+  const leadExhibition = await store.upsertNode(
+    node("Lead:Exhibition-Delhi", "Lead", "Exhibition-Delhi", {
+      channel: "trade_show",
+      status: "open",
+      city: "Delhi",
+      note: "India Craft Week contact — bulk Diwali interest",
+    }),
+  );
+  const leadKaran = await store.upsertNode(
+    node("Lead:Referral-Karan", "Lead", "Referral-Karan", {
+      channel: "referral",
+      status: "warm",
+      city: "Udaipur",
+      note: "Referred by Heritage Gallery",
+      referredBy: "Org:Heritage-Gallery",
+    }),
+  );
+  const leadNisha = await store.upsertNode(
+    node("Lead:Google-Nisha", "Lead", "Google-Nisha", {
+      channel: "website",
+      status: "open",
+      city: "Hyderabad",
+      note: "Website inquiry — Thali-Pooja-Set for wedding",
     }),
   );
   const listing = await store.upsertNode(
@@ -224,10 +667,35 @@ export async function seedArkaAtelier(
       priceInPaise: 185000,
     }),
   );
+  const listingUrli = await store.upsertNode(
+    node("Listing:Urli-Round-Instagram", "Listing", "Urli-Round Instagram", {
+      channel: "instagram",
+      priceInPaise: 320000,
+    }),
+  );
   const meeting = await store.upsertNode(
     node("Meeting:VendorCall-Thu", "Meeting", "Vendor call Thu", {
       startsAt: nearestThursday1600Ist(),
       attendeeOrgKey: "Org:Meenakshi-Brass",
+    }),
+  );
+  const meetingRangoli = await store.upsertNode(
+    node("Meeting:CustomerVisit-Rangoli", "Meeting", "Customer visit Rangoli", {
+      startsAt: daysFromNow(7),
+      attendeeOrgKey: "Org:Rangoli-Retail",
+      note: "Delhi showroom visit — confirm SO-220 allocation",
+    }),
+  );
+  const meetingTradeShow = await store.upsertNode(
+    node("Meeting:TradeShow-Delhi", "Meeting", "Trade show Delhi", {
+      startsAt: daysFromNow(10),
+      note: "India Craft Week booth — follow Exhibition-Delhi lead",
+    }),
+  );
+  const meetingBank = await store.upsertNode(
+    node("Meeting:BankMeeting", "Meeting", "Bank meeting", {
+      startsAt: nextMonday0900Ist(),
+      note: "Working-capital line review — Craft Central delays squeezing cash",
     }),
   );
   const message = await store.upsertNode(
@@ -448,23 +916,144 @@ export async function seedArkaAtelier(
   await write("SUPPLIES", meenakshi._id, brass._id);
   await write("SUPPLIES", shreeMetal._id, brass._id);
   await write("SUPPLIES", jaipurAlloys._id, brass._id);
+  await write("SUPPLIES", shreeMetal._id, brassRod._id);
+  await write("SUPPLIES", jaipurAlloys._id, copperSheet._id);
+  await write("SUPPLIES", meenakshi._id, juteCord._id);
+  await write("SUPPLIES", jaipurAlloys._id, lacquer._id);
+
+  // PO-104 late path (Meenakshi unreliable)
   await write("ORDER_CONTAINS", po104._id, brass._id, { qty: 40, uom: "kg" });
   await write("FULFILLS", in77._id, po104._id);
+  await write("CONTACT_AT", meenakshi._id, po104._id);
+  await write("SHIPS", in77._id, delhivery._id);
+
+  // PO-105 delivered on time (Shree Metal rods)
+  await write("ORDER_CONTAINS", po105._id, brassRod._id, { qty: 25, uom: "kg" });
+  await write("CONTACT_AT", shreeMetal._id, po105._id);
+
+  // PO-106 copper in transit
+  await write("ORDER_CONTAINS", po106._id, copperSheet._id, { qty: 10, uom: "kg" });
+  await write("FULFILLS", in78._id, po106._id);
+  await write("CONTACT_AT", jaipurAlloys._id, po106._id);
+  await write("SHIPS", in78._id, delhivery._id);
+
+  // PO-107 draft — pending approval to Meenakshi (risk)
+  await write("ORDER_CONTAINS", po107._id, brass._id, { qty: 60, uom: "kg" });
+  await write("CONTACT_AT", meenakshi._id, po107._id);
+
+  // PO-108 emergency brass for Rangoli SO-220
+  await write("ORDER_CONTAINS", po108._id, brass._id, { qty: 50, uom: "kg" });
+  await write("CONTACT_AT", shreeMetal._id, po108._id);
+
   await write("MADE_FROM", diya._id, brass._id, { qty: 0.35, uom: "kg" });
+  await write("MADE_FROM", diyaSmall._id, brass._id, { qty: 0.18, uom: "kg" });
+  await write("MADE_FROM", tray._id, brass._id, { qty: 0.55, uom: "kg" });
+  await write("MADE_FROM", urli._id, brass._id, { qty: 0.9, uom: "kg" });
+  await write("MADE_FROM", lamp._id, brass._id, { qty: 1.2, uom: "kg" });
+  await write("MADE_FROM", incense._id, brass._id, { qty: 0.12, uom: "kg" });
+  await write("MADE_FROM", bell._id, brassRod._id, { qty: 0.4, uom: "kg" });
+  await write("MADE_FROM", thali._id, brass._id, { qty: 1.5, uom: "kg" });
+  await write("MADE_FROM", candleStand._id, brassRod._id, { qty: 0.6, uom: "kg" });
+  await write("MADE_FROM", lamp._id, copperSheet._id, { qty: 0.15, uom: "kg" });
+  await write("MADE_FROM", urli._id, lacquer._id, { qty: 0.02, uom: "ltr" });
+
   await write("STOCK_OF", diyaStock._id, diya._id);
   await write("STOCK_OF", trayStock._id, tray._id);
+  await write("STOCK_OF", diyaSmallStock._id, diyaSmall._id);
+  await write("STOCK_OF", castBlankStock._id, castBlank._id);
+  await write("STOCK_OF", urliStock._id, urli._id);
+  await write("STOCK_OF", lampStock._id, lamp._id);
+  await write("STOCK_OF", incenseStock._id, incense._id);
+  await write("STOCK_OF", bellStock._id, bell._id);
+  await write("STOCK_OF", thaliStock._id, thali._id);
+  await write("STOCK_OF", candleStock._id, candleStand._id);
+
   await write("LOCATED_AT", diyaStock._id, workshop._id);
   await write("LOCATED_AT", trayStock._id, workshop._id);
+  await write("LOCATED_AT", diyaSmallStock._id, workshop._id);
+  await write("LOCATED_AT", castBlankStock._id, workshop._id);
+  await write("LOCATED_AT", urliStock._id, workshop._id);
+  await write("LOCATED_AT", lampStock._id, workshop._id);
+  await write("LOCATED_AT", incenseStock._id, workshop._id);
+  await write("LOCATED_AT", bellStock._id, workshop._id);
+  await write("LOCATED_AT", thaliStock._id, workshop._id);
+  await write("LOCATED_AT", candleStock._id, workshop._id);
+
+  // Existing orders
   await write("ORDER_CONTAINS", so218._id, diya._id, { qty: 8 });
   await write("ORDER_CONTAINS", so201._id, tray._id, { qty: 1 });
   await write("BUYS", lotus._id, so218._id);
+  await write("BUYS", diwaliBazaar._id, so201._id);
   await write("ABOUT", so218._id, po104._id);
-  await write("CONTACT_AT", meenakshi._id, po104._id);
   await write("INVOICES", inv90._id, so218._id);
   await write("PAYS", plink7._id, inv90._id);
+
+  // SO-220 Rangoli surge → PO-108 brass story
+  await write("ORDER_CONTAINS", so220._id, urli._id, { qty: 55 });
+  await write("ORDER_CONTAINS", so220._id, diya._id, { qty: 20 });
+  await write("BUYS", rangoli._id, so220._id);
+  await write("ABOUT", so220._id, po108._id);
+
+  // SO-221 Heritage premium — delivered + paid (₹2,75,000)
+  await write("ORDER_CONTAINS", so221._id, thali._id, { qty: 30 });
+  await write("ORDER_CONTAINS", so221._id, lamp._id, { qty: 20 });
+  await write("BUYS", heritageGallery._id, so221._id);
+  await write("FULFILLS", out44._id, so221._id);
+  await write("SHIPS", out44._id, delhivery._id);
+  await write("INVOICES", inv91._id, so221._id);
+  await write("PAYS", pay91._id, inv91._id);
+
+  // SO-222 Craft Central — shipped, invoice overdue
+  await write("ORDER_CONTAINS", so222._id, tray._id, { qty: 10 });
+  await write("BUYS", craftCentral._id, so222._id);
+  await write("FULFILLS", out46._id, so222._id);
+  await write("SHIPS", out46._id, delhivery._id);
+  await write("INVOICES", inv93._id, so222._id);
+
+  // SO-223 Artisan House first order — draft invoice (₹8,500)
+  await write("ORDER_CONTAINS", so223._id, urli._id, { qty: 2 });
+  await write("ORDER_CONTAINS", so223._id, incense._id, { qty: 2 });
+  await write("BUYS", artisanHouse._id, so223._id);
+  await write("INVOICES", inv95._id, so223._id);
+
+  // SO-224 Diwali Bazaar D2C packing
+  await write("ORDER_CONTAINS", so224._id, diyaSmall._id, { qty: 40 });
+  await write("BUYS", diwaliBazaar._id, so224._id);
+  await write("FULFILLS", out45._id, so224._id);
+  await write("SHIPS", out45._id, delhivery._id);
+
+  // SO-225 Rangoli bells — delivered, invoice due soon
+  await write("ORDER_CONTAINS", so225._id, bell._id, { qty: 12 });
+  await write("BUYS", rangoli._id, so225._id);
+  await write("INVOICES", inv92._id, so225._id);
+  await write("ABOUT", so225._id, po105._id);
+
+  // SO-226 Lotus lamps — shipped + paid
+  await write("ORDER_CONTAINS", so226._id, lamp._id, { qty: 4 });
+  await write("BUYS", lotus._id, so226._id);
+  await write("INVOICES", inv94._id, so226._id);
+  await write("PAYS", pay94._id, inv94._id);
+
+  // SO-227 cancelled
+  await write("ORDER_CONTAINS", so227._id, candleStand._id, { qty: 6 });
+  await write("BUYS", craftCentral._id, so227._id);
+
+  // SO-228 Heritage candle stands packing
+  await write("ORDER_CONTAINS", so228._id, candleStand._id, { qty: 8 });
+  await write("BUYS", heritageGallery._id, so228._id);
+
   await write("SOURCED_FROM", lead._id, listing._id);
   await write("LISTS", listing._id, diya._id);
+  await write("SOURCED_FROM", leadPriya._id, listingUrli._id);
+  await write("LISTS", listingUrli._id, urli._id);
+  await write("ABOUT", leadExhibition._id, meetingTradeShow._id);
+  await write("ABOUT", leadKaran._id, heritageGallery._id);
+  await write("ABOUT", leadNisha._id, thali._id);
+
   await write("ABOUT", meeting._id, po104._id);
+  await write("ABOUT", meetingRangoli._id, so220._id);
+  await write("ABOUT", meetingTradeShow._id, leadExhibition._id);
+  await write("ABOUT", meetingBank._id, inv93._id);
   await write("ABOUT", message._id, po104._id);
   await write("CONTACT_AT", meenakshiContact._id, meenakshi._id);
 
