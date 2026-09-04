@@ -119,6 +119,12 @@ export function buildGovernorPrompt(ctx: PromptContext): string {
     "### Comms / Calendar / Listings / Memory",
     "- comms_draft_email / calendar_meeting_brief / listings_draft_copy",
     "- memory_search / memory_record",
+    "",
+    "### Create / Write",
+    "You can take real action — create entities in the graph when the operator describes new business facts.",
+    "- create_customer / create_vendor / create_invoice / create_sku / create_material",
+    "- create_lead / create_sales_order / record_payment / create_meeting / update_node",
+    "Proactively offer to create when the user mentions a new customer, invoice, SKU, material, lead, sales order, payment, or meeting.",
   );
 
   return lines.join("\n");

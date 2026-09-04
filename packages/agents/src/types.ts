@@ -44,6 +44,12 @@ export type ConsultFinding = {
   error?: string;
 };
 
+export type ThreadAttachment = {
+  name: string;
+  type: string;
+  size: number;
+};
+
 export type ThreadEntry =
   | {
       id: string;
@@ -51,6 +57,7 @@ export type ThreadEntry =
       content: string;
       contextNodeKey: string | null;
       createdAt: string;
+      attachments?: ThreadAttachment[];
     }
   | {
       id: string;

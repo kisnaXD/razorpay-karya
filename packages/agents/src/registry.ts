@@ -12,8 +12,23 @@ export const SHARED_READ_TOOLS = [
   "memory_search",
 ] as const;
 
+/** Write/create tools — any agent may need to create business entities */
+export const SHARED_WRITE_TOOLS = [
+  "create_customer",
+  "create_vendor",
+  "create_invoice",
+  "create_sku",
+  "create_material",
+  "create_lead",
+  "create_sales_order",
+  "record_payment",
+  "create_meeting",
+  "update_node",
+] as const;
+
 const FINANCE_TOOLS = [
   ...SHARED_READ_TOOLS,
+  ...SHARED_WRITE_TOOLS,
   "money_create_payment_link",
   "money_list_overdue_invoices",
   "money_propose_collection",
@@ -30,6 +45,7 @@ const FINANCE_TOOLS = [
 
 const PROCUREMENT_TOOLS = [
   ...SHARED_READ_TOOLS,
+  ...SHARED_WRITE_TOOLS,
   "inventory_check_stock",
   "inventory_promise_query",
   "sourcing_explain_need",
@@ -43,6 +59,7 @@ const PROCUREMENT_TOOLS = [
 
 const SALES_TOOLS = [
   ...SHARED_READ_TOOLS,
+  ...SHARED_WRITE_TOOLS,
   "sales_get_order_book",
   "sales_generate_quote",
   "sales_accept_order",
@@ -56,6 +73,7 @@ const SALES_TOOLS = [
 
 const OPERATIONS_TOOLS = [
   ...SHARED_READ_TOOLS,
+  ...SHARED_WRITE_TOOLS,
   "inventory_check_stock",
   "inventory_promise_query",
   "calendar_meeting_brief",

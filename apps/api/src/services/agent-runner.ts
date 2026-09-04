@@ -50,6 +50,34 @@ export type AgentStreamEvent =
   | { type: "done"; thread: AgentThread }
   | { type: "error"; message: string };
 
+export type AgentAttachment = {
+  name: string;
+  type: string;
+  data: string;
+  size: number;
+};
+
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)}KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function enrichMessageWithAttachments(
+  message: string,
+  attachments: AgentAttachment[] | undefined,
+): string {
+  if (!attachments?.length) return message;
+  const list = attachments
+    .map((a) => `${a.name} (${formatAttachmentSize(a.size)})`)
+    .join(", ");
+  const suffix = `[User attached: ${list}]`;
+  const trimmed = message.trim();
+  return trimmed.length > 0 ? `${trimmed}\n\n${suffix}` : suffix;
+}
+
 function buildToolContext(
   db: Db,
   store: GraphStore,
@@ -166,6 +194,7 @@ export async function handleAgentMessage(
     contextNodeKey?: string;
     actor: string;
     agentId?: AgentId;
+    attachments?: AgentAttachment[];
   },
   onEvent: (event: AgentStreamEvent) => void,
 ): Promise<AgentThread> {
@@ -191,6 +220,20 @@ export async function handleAgentMessage(
       : {}),
   });
   const memoryStrings = memories.map((m) => m.content);
+
+  const enrichedMessage = enrichMessageWithAttachments(
+    input.message,
+    input.attachments,
+  );
+  const attachmentMeta = input.attachments?.map(({ name, type, size }) => ({
+    name,
+    type,
+    size,
+  }));
+  const turnOptions =
+    attachmentMeta && attachmentMeta.length > 0
+      ? { attachments: attachmentMeta }
+      : undefined;
 
   const commonDeps = {
     model: env.OPENAI_MODEL,
@@ -253,7 +296,8 @@ export async function handleAgentMessage(
                 onToolFinish: commonDeps.onToolFinish,
               }),
           },
-          input.message,
+          enrichedMessage,
+          turnOptions,
         )
       : await runSpecialistTurn(
           {
@@ -261,7 +305,8 @@ export async function handleAgentMessage(
             agentId,
             tools: buildToolsForAgent(ctx, agentId),
           },
-          input.message,
+          enrichedMessage,
+          turnOptions,
         );
 
   const toAppend = result.newEntries.filter((e) => e.kind === "assistant");

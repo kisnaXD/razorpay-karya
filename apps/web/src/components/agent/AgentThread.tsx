@@ -3,7 +3,11 @@
 import { useEffect, useRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { useAgent } from "@/lib/agent-context";
-import type { AgentId, AgentThreadEntryDto } from "@/lib/api";
+import type {
+  AgentAttachmentMeta,
+  AgentId,
+  AgentThreadEntryDto,
+} from "@/lib/api";
 import { ReportBlock, isReportSpec } from "./ReportBlock";
 import { ToolTraceRow } from "./ToolTraceRow";
 import { ConsultTraceRow } from "./ConsultTraceRow";
@@ -23,6 +27,16 @@ function summarizeOutput(output: unknown): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function stripAttachmentSuffix(content: string): string {
+  return content.replace(/\n\n\[User attached: [^\]]+\]\s*$/, "").trim();
 }
 
 const markdownComponents: Components = {
@@ -88,11 +102,52 @@ const markdownComponents: Components = {
   ),
 };
 
-function UserBubble({ content }: { content: string }) {
+function UserBubble({
+  content,
+  attachments,
+}: {
+  content: string;
+  attachments?: AgentAttachmentMeta[];
+}) {
+  const displayContent = attachments?.length
+    ? stripAttachmentSuffix(content)
+    : content;
+
   return (
     <div className="animate-fade-in-up flex justify-end">
-      <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-signal px-4 py-2.5 text-[13px] leading-[1.45] whitespace-pre-wrap text-white">
-        {content}
+      <div className="flex max-w-[80%] flex-col items-end gap-1.5">
+        {displayContent ? (
+          <div className="rounded-2xl rounded-br-sm bg-signal px-4 py-2.5 text-[13px] leading-[1.45] whitespace-pre-wrap text-white">
+            {displayContent}
+          </div>
+        ) : null}
+        {attachments && attachments.length > 0 ? (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {attachments.map((file) => {
+              const isImage = file.type.startsWith("image/");
+              return (
+                <div
+                  key={`${file.name}-${file.size}`}
+                  className="flex items-center gap-1.5 rounded-lg border border-line/40 bg-surface-2/80 px-2 py-1 text-[11px] text-muted"
+                  title={`${file.name} (${formatAttachmentSize(file.size)})`}
+                >
+                  <span
+                    className="flex h-5 w-5 items-center justify-center rounded bg-ink/30 text-[9px] font-medium tracking-tight text-muted"
+                    aria-hidden
+                  >
+                    {isImage ? "IMG" : "FILE"}
+                  </span>
+                  <span className="max-w-[120px] truncate text-text">
+                    {file.name}
+                  </span>
+                  <span className="tabular-nums">
+                    {formatAttachmentSize(file.size)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -194,7 +249,13 @@ export function AgentThread() {
     <div className="flex flex-col gap-3">
       {topLevel.map((entry) => {
         if (entry.kind === "user") {
-          return <UserBubble key={entry.id} content={entry.content} />;
+          return (
+            <UserBubble
+              key={entry.id}
+              content={entry.content}
+              {...(entry.attachments ? { attachments: entry.attachments } : {})}
+            />
+          );
         }
         if (entry.kind === "assistant") {
           return (

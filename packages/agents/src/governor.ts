@@ -6,6 +6,7 @@ import { newEntryId, wrapToolsForTracing } from "./tracing.js";
 import type {
   AgentThread,
   ConsultFinding,
+  ThreadAttachment,
   ThreadEntry,
 } from "./types.js";
 
@@ -55,6 +56,7 @@ function toCoreMessages(entries: ThreadEntry[]): CoreMessage[] {
 export async function runGovernorTurn(
   deps: GovernorDeps,
   userMessage: string,
+  options?: { attachments?: ThreadAttachment[] },
 ): Promise<GovernorTurnResult> {
   const newEntries: ThreadEntry[] = [];
   const now = () => new Date().toISOString();
@@ -65,6 +67,9 @@ export async function runGovernorTurn(
     content: userMessage,
     contextNodeKey: deps.contextNodeKey,
     createdAt: now(),
+    ...(options?.attachments?.length
+      ? { attachments: options.attachments }
+      : {}),
   };
   newEntries.push(userEntry);
   await deps.onUserEntry?.(userEntry);

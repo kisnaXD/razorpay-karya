@@ -8,6 +8,7 @@ export type {
   OrderBookRow,
   QuoteResult,
   SideEffectClass,
+  ThreadAttachment,
   ThreadEntry,
   ToolContext,
   ToolTraceStatus,

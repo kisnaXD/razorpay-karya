@@ -16,6 +16,7 @@ import {
   fetchAgentThread,
   resumeAgent,
   sendAgentMessage,
+  type AgentAttachment,
   type AgentId,
   type AgentPersonaDto,
   type AgentStreamEvent,
@@ -35,7 +36,10 @@ export type AgentContextValue = {
   setSelectedAgent: (id: AgentId) => void;
   personas: AgentPersonaDto[];
   refresh: () => Promise<void>;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (
+    message: string,
+    attachments?: AgentAttachment[],
+  ) => Promise<void>;
   resumeFromApproval: (approvalId: string) => Promise<void>;
   requestOpenDock: () => void;
 };
@@ -78,13 +82,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendMessage = useCallback(
-    async (message: string) => {
+    async (message: string, attachments?: AgentAttachment[]) => {
       setSending(true);
       setStreamingText("");
       setError(null);
 
       const optimisticId = `local-user-${Date.now()}`;
       const now = new Date().toISOString();
+      const attachmentMeta = attachments?.map(({ name, type, size }) => ({
+        name,
+        type,
+        size,
+      }));
       setThread((prev) => {
         const userEntry: AgentThreadDto["entries"][number] = {
           id: optimisticId,
@@ -92,6 +101,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           content: message,
           contextNodeKey: selectedNodeKey ?? null,
           createdAt: now,
+          ...(attachmentMeta?.length ? { attachments: attachmentMeta } : {}),
         };
         if (!prev) {
           return {
@@ -124,6 +134,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         const final = await sendAgentMessage(message, {
           ...(selectedNodeKey ? { contextNodeKey: selectedNodeKey } : {}),
           agentId: selectedAgentId,
+          ...(attachments?.length ? { attachments } : {}),
           onEvent,
         });
         setThread(final);

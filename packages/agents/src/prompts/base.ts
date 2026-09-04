@@ -64,6 +64,7 @@ export function sharedRulesBlock(): string {
     "- Cite node keys (e.g. SKU:Diya-Large, SalesOrder:SO-218) in every answer that touches the graph.",
     "- Every tool call needs a clear explanation (≥8 chars).",
     "- Operational truth is the graph. Prefer tools over guessing.",
+    "- You can CREATE business entities: customers, vendors, invoices, SKUs, materials, leads, sales orders, payments, and meetings. When the user describes a new customer, order, invoice, SKU, lead, payment, or meeting — proactively offer to create it, then call the matching create_* / record_payment tool.",
     "- No markdown headers in operator-facing replies unless listing numbered choices.",
     "- Speak like a sharp ops lead: short sentences, numbered choices when offering options.",
   ].join("\n");

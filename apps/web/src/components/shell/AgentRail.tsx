@@ -196,7 +196,7 @@ export function AgentRail({ exceptionCount }: AgentRailProps) {
       <div className="shrink-0 border-t border-line">
         <AgentMessageInput
           disabled={sending}
-          onSend={(m) => void sendMessage(m)}
+          onSend={(m, attachments) => void sendMessage(m, attachments)}
         />
       </div>
       <footer className="shrink-0 px-4 py-2 text-[11px] leading-[1.45] text-muted/70">

@@ -14,6 +14,7 @@ import { ToolTrace } from "@/components/agent/ToolTrace";
 import { DraftEmailCard } from "@/components/comms/DraftEmailCard";
 import {
   sendCommsEmail,
+  type AgentAttachment,
   type AgentId,
   type EmailDraftDto,
 } from "@/lib/api";
@@ -213,10 +214,10 @@ export function GovernorDock() {
     }
   }
 
-  async function handleSend(message: string) {
+  async function handleSend(message: string, attachments?: AgentAttachment[]) {
     setDockState("open");
     setDraftInput("");
-    await sendMessage(message);
+    await sendMessage(message, attachments);
   }
 
   function submitCollapsed() {
@@ -338,7 +339,7 @@ export function GovernorDock() {
                     placeholder={agentPlaceholder}
                     initialValue={draftInput}
                     autoFocus
-                    onSend={(m) => void handleSend(m)}
+                    onSend={(m, attachments) => void handleSend(m, attachments)}
                   />
                 </div>
               </div>

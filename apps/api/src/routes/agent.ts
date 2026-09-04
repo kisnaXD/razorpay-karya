@@ -17,13 +17,28 @@ import type { Env } from "../env.js";
 
 type PluginOpts = { env: Env };
 
-const messageBodySchema = z.object({
-  message: z.string().min(1),
-  contextNodeKey: z.string().optional(),
-  agentId: z
-    .enum(["governor", "finance", "procurement", "sales", "operations"])
-    .optional(),
+const attachmentSchema = z.object({
+  name: z.string().min(1),
+  type: z.string().min(1),
+  data: z.string().min(1),
+  size: z.number().int().positive().max(10 * 1024 * 1024),
 });
+
+const messageBodySchema = z
+  .object({
+    message: z.string(),
+    contextNodeKey: z.string().optional(),
+    agentId: z
+      .enum(["governor", "finance", "procurement", "sales", "operations"])
+      .optional(),
+    attachments: z.array(attachmentSchema).optional(),
+  })
+  .refine(
+    (body) =>
+      body.message.trim().length > 0 ||
+      (body.attachments !== undefined && body.attachments.length > 0),
+    { message: "message_or_attachments_required" },
+  );
 
 const resumeBodySchema = z.object({
   approvalId: z.string().min(1),
@@ -95,6 +110,9 @@ export const agentRoutes: FastifyPluginAsync<PluginOpts> = async (
               : {}),
             ...(parsed.data.agentId !== undefined
               ? { agentId: parsed.data.agentId }
+              : {}),
+            ...(parsed.data.attachments !== undefined
+              ? { attachments: parsed.data.attachments }
               : {}),
             actor: actorFrom(request.headers as Record<string, unknown>),
           },

@@ -416,6 +416,19 @@ export async function fetchAgentPersonas(): Promise<AgentPersonaDto[]> {
 
 export type ConsultStatus = "running" | "done" | "error";
 
+export type AgentAttachment = {
+  name: string;
+  type: string; // MIME type
+  data: string; // base64
+  size: number;
+};
+
+export type AgentAttachmentMeta = {
+  name: string;
+  type: string;
+  size: number;
+};
+
 export type AgentThreadEntryDto =
   | {
       id: string;
@@ -423,6 +436,7 @@ export type AgentThreadEntryDto =
       content: string;
       contextNodeKey: string | null;
       createdAt: string;
+      attachments?: AgentAttachmentMeta[];
     }
   | {
       id: string;
@@ -486,10 +500,11 @@ export async function sendAgentMessage(
   options?: {
     contextNodeKey?: string;
     agentId?: AgentId;
+    attachments?: AgentAttachment[];
     onEvent?: (ev: AgentStreamEvent) => void;
   },
 ): Promise<AgentThreadDto> {
-  const { contextNodeKey, agentId, onEvent } = options ?? {};
+  const { contextNodeKey, agentId, attachments, onEvent } = options ?? {};
   const res = await fetch(apiUrl("/v1/agent/message"), {
     method: "POST",
     headers: { ...ORG_HEADER, "Content-Type": "application/json" },
@@ -497,6 +512,7 @@ export async function sendAgentMessage(
       message,
       ...(contextNodeKey ? { contextNodeKey } : {}),
       ...(agentId ? { agentId } : {}),
+      ...(attachments?.length ? { attachments } : {}),
     }),
   });
 

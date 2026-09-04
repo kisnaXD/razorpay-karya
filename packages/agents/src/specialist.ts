@@ -3,7 +3,12 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { GovernorDeps, GovernorTurnResult } from "./governor.js";
 import { buildPromptForAgent } from "./prompts/index.js";
 import { newEntryId, wrapToolsForTracing } from "./tracing.js";
-import type { AgentId, AgentThread, ThreadEntry } from "./types.js";
+import type {
+  AgentId,
+  AgentThread,
+  ThreadAttachment,
+  ThreadEntry,
+} from "./types.js";
 
 export type SpecialistDeps = GovernorDeps & { agentId: AgentId };
 
@@ -22,6 +27,7 @@ function toCoreMessages(entries: ThreadEntry[]): CoreMessage[] {
 export async function runSpecialistTurn(
   deps: SpecialistDeps,
   userMessage: string,
+  options?: { attachments?: ThreadAttachment[] },
 ): Promise<GovernorTurnResult> {
   if (deps.agentId === "governor") {
     throw new Error("runSpecialistTurn requires a specialist agentId");
@@ -36,6 +42,9 @@ export async function runSpecialistTurn(
     content: userMessage,
     contextNodeKey: deps.contextNodeKey,
     createdAt: now(),
+    ...(options?.attachments?.length
+      ? { attachments: options.attachments }
+      : {}),
   };
   newEntries.push(userEntry);
   await deps.onUserEntry?.(userEntry);

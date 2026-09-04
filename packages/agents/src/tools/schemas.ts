@@ -237,3 +237,127 @@ export const consultAgentsSchema = z.object({
     .max(4),
   explanation: explanationField,
 });
+
+export const createCustomerSchema = z.object({
+  name: z.string().min(1).describe("Customer / boutique name"),
+  city: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  notes: z.string().optional(),
+  explanation: explanationField,
+});
+
+export const createVendorSchema = z.object({
+  name: z.string().min(1).describe("Vendor / supplier name"),
+  city: z.string().optional(),
+  email: z.string().optional(),
+  verified_bank: z
+    .boolean()
+    .optional()
+    .describe("Whether bank details are verified (default false)"),
+  materials: z
+    .array(z.string())
+    .optional()
+    .describe('Material keys they supply, e.g. ["Material:BrassSheet-22g"]'),
+  explanation: explanationField,
+});
+
+export const createInvoiceSchema = z.object({
+  invoiceNumber: z.string().min(1).describe('e.g. "INV-96"'),
+  customerOrgKey: z.string().min(1).describe('e.g. "Org:Lotus-Boutique"'),
+  amountInPaise: z.number().int().positive(),
+  dueInDays: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Days until due (default 30)"),
+  items: z.string().optional().describe("Line-item description"),
+  salesOrderKey: z
+    .string()
+    .optional()
+    .describe('Optional linked sales order, e.g. "SalesOrder:SO-218"'),
+  explanation: explanationField,
+});
+
+export const createSkuSchema = z.object({
+  name: z.string().min(1),
+  priceInPaise: z.number().int().positive(),
+  description: z.string().optional(),
+  gst: z.number().optional().describe("GST percent (default 12)"),
+  lead_days: z.number().int().positive().optional(),
+  materialKeys: z
+    .array(z.string())
+    .optional()
+    .describe("Raw material keys this SKU is made from"),
+  explanation: explanationField,
+});
+
+export const createMaterialSchema = z.object({
+  name: z.string().min(1),
+  uom: z.string().optional().describe('Unit of measure (default "kg")'),
+  reorder_point: z.number().optional(),
+  explanation: explanationField,
+});
+
+export const createLeadSchema = z.object({
+  name: z.string().min(1),
+  channel: z.enum([
+    "instagram",
+    "whatsapp",
+    "email",
+    "website",
+    "referral",
+    "exhibition",
+  ]),
+  notes: z.string().optional(),
+  skuInterest: z
+    .string()
+    .optional()
+    .describe('SKU key of interest, e.g. "SKU:Diya-Large"'),
+  explanation: explanationField,
+});
+
+export const createSalesOrderSchema = z.object({
+  customerOrgKey: z.string().min(1),
+  skuKey: z.string().min(1),
+  qty: z.number().int().positive(),
+  promiseDays: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Days until promise date (default 7)"),
+  channel: z.enum(["d2c", "wholesale", "marketplace"]).optional(),
+  explanation: explanationField,
+});
+
+export const recordPaymentSchema = z.object({
+  invoiceKey: z.string().min(1),
+  amountInPaise: z.number().int().positive(),
+  method: z.enum([
+    "bank_transfer",
+    "upi",
+    "cheque",
+    "cash",
+    "payment_link",
+  ]),
+  reference: z.string().optional().describe("UTR / cheque / link reference"),
+  explanation: explanationField,
+});
+
+export const createMeetingSchema = z.object({
+  title: z.string().min(1),
+  startsAt: z.string().min(1).describe("ISO datetime for meeting start"),
+  attendeeOrgKey: z.string().optional(),
+  notes: z.string().optional(),
+  explanation: explanationField,
+});
+
+export const updateNodeSchema = z.object({
+  nodeKey: z.string().min(1),
+  updates: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .describe("Property updates to merge onto the node"),
+  explanation: explanationField,
+});

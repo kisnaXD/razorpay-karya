@@ -51,6 +51,26 @@ import { memoryRecord, memorySearch } from "./memory.js";
 import { generateReport } from "./report.js";
 import { rootCauseAnalysis } from "./root-cause.js";
 import {
+  createCustomer,
+  createInvoice,
+  createLead,
+  createMaterial,
+  createMeeting,
+  createSalesOrder,
+  createSku,
+  createVendor,
+  recordPayment,
+  updateNode,
+} from "./create.js";
+import {
+  createCustomerSchema,
+  createInvoiceSchema,
+  createLeadSchema,
+  createMaterialSchema,
+  createMeetingSchema,
+  createSalesOrderSchema,
+  createSkuSchema,
+  createVendorSchema,
   generateReportSchema,
   graphFindPathSchema,
   graphGetImpactSchema,
@@ -71,11 +91,13 @@ import {
   moneyProposeRecoverySchema,
   moneyRunCollectionsLoopSchema,
   queryGraphSchema,
+  recordPaymentSchema,
   rootCauseAnalysisSchema,
   salesAcceptOrderSchema,
   salesGenerateQuoteSchema,
   salesGetOrderBookSchema,
   salesRejectOrderSchema,
+  updateNodeSchema,
 } from "./schemas.js";
 
 export const TOOL_SIDE_EFFECTS: Record<string, SideEffectClass> = {
@@ -112,6 +134,16 @@ export const TOOL_SIDE_EFFECTS: Record<string, SideEffectClass> = {
   memory_search: "read",
   memory_record: "draft",
   consult_agents: "read",
+  create_customer: "write",
+  create_vendor: "write",
+  create_invoice: "write",
+  create_sku: "write",
+  create_material: "write",
+  create_lead: "write",
+  create_sales_order: "write",
+  record_payment: "write",
+  create_meeting: "write",
+  update_node: "write",
 };
 
 export function buildTools(ctx: ToolContext): Record<string, CoreTool> {
@@ -380,6 +412,158 @@ export function buildTools(ctx: ToolContext): Record<string, CoreTool> {
         "Save a new organizational preference or decision to memory for future turns.",
       parameters: memoryRecordSchema,
       execute: async (input) => memoryRecord(ctx, input),
+    }),
+    create_customer: tool({
+      description:
+        "Create a customer Org node (role=customer) and link it to the merchant.",
+      parameters: createCustomerSchema,
+      execute: async (input) =>
+        createCustomer(ctx, {
+          name: input.name,
+          explanation: input.explanation,
+          ...(input.city !== undefined ? { city: input.city } : {}),
+          ...(input.email !== undefined ? { email: input.email } : {}),
+          ...(input.phone !== undefined ? { phone: input.phone } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        }),
+    }),
+    create_vendor: tool({
+      description:
+        "Create a vendor Org node (role=vendor), optionally linking SUPPLIES edges to materials.",
+      parameters: createVendorSchema,
+      execute: async (input) =>
+        createVendor(ctx, {
+          name: input.name,
+          explanation: input.explanation,
+          ...(input.city !== undefined ? { city: input.city } : {}),
+          ...(input.email !== undefined ? { email: input.email } : {}),
+          ...(input.verified_bank !== undefined
+            ? { verified_bank: input.verified_bank }
+            : {}),
+          ...(input.materials !== undefined
+            ? { materials: input.materials }
+            : {}),
+        }),
+    }),
+    create_invoice: tool({
+      description:
+        "Create an Invoice (status=sent), bill a customer, and optionally link a sales order.",
+      parameters: createInvoiceSchema,
+      execute: async (input) =>
+        createInvoice(ctx, {
+          invoiceNumber: input.invoiceNumber,
+          customerOrgKey: input.customerOrgKey,
+          amountInPaise: input.amountInPaise,
+          explanation: input.explanation,
+          ...(input.dueInDays !== undefined
+            ? { dueInDays: input.dueInDays }
+            : {}),
+          ...(input.items !== undefined ? { items: input.items } : {}),
+          ...(input.salesOrderKey !== undefined
+            ? { salesOrderKey: input.salesOrderKey }
+            : {}),
+        }),
+    }),
+    create_sku: tool({
+      description:
+        "Create a SKU with Workshop stock (on_hand=0), optional MADE_FROM materials.",
+      parameters: createSkuSchema,
+      execute: async (input) =>
+        createSku(ctx, {
+          name: input.name,
+          priceInPaise: input.priceInPaise,
+          explanation: input.explanation,
+          ...(input.description !== undefined
+            ? { description: input.description }
+            : {}),
+          ...(input.gst !== undefined ? { gst: input.gst } : {}),
+          ...(input.lead_days !== undefined
+            ? { lead_days: input.lead_days }
+            : {}),
+          ...(input.materialKeys !== undefined
+            ? { materialKeys: input.materialKeys }
+            : {}),
+        }),
+    }),
+    create_material: tool({
+      description: "Create a raw Material node (uom, optional reorder_point).",
+      parameters: createMaterialSchema,
+      execute: async (input) =>
+        createMaterial(ctx, {
+          name: input.name,
+          explanation: input.explanation,
+          ...(input.uom !== undefined ? { uom: input.uom } : {}),
+          ...(input.reorder_point !== undefined
+            ? { reorder_point: input.reorder_point }
+            : {}),
+        }),
+    }),
+    create_lead: tool({
+      description:
+        "Create a Lead from a channel (instagram/whatsapp/etc.), optionally interested in a SKU.",
+      parameters: createLeadSchema,
+      execute: async (input) =>
+        createLead(ctx, {
+          name: input.name,
+          channel: input.channel,
+          explanation: input.explanation,
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          ...(input.skuInterest !== undefined
+            ? { skuInterest: input.skuInterest }
+            : {}),
+        }),
+    }),
+    create_sales_order: tool({
+      description:
+        "Create a SalesOrder (auto SO number), link customer+SKU, reserve stock when available.",
+      parameters: createSalesOrderSchema,
+      execute: async (input) =>
+        createSalesOrder(ctx, {
+          customerOrgKey: input.customerOrgKey,
+          skuKey: input.skuKey,
+          qty: input.qty,
+          explanation: input.explanation,
+          ...(input.promiseDays !== undefined
+            ? { promiseDays: input.promiseDays }
+            : {}),
+          ...(input.channel !== undefined ? { channel: input.channel } : {}),
+        }),
+    }),
+    record_payment: tool({
+      description:
+        "Record a Payment against an invoice; marks invoice paid when amount matches.",
+      parameters: recordPaymentSchema,
+      execute: async (input) =>
+        recordPayment(ctx, {
+          invoiceKey: input.invoiceKey,
+          amountInPaise: input.amountInPaise,
+          method: input.method,
+          explanation: input.explanation,
+          ...(input.reference !== undefined
+            ? { reference: input.reference }
+            : {}),
+        }),
+    }),
+    create_meeting: tool({
+      description:
+        "Schedule a Meeting node, optionally linked to an attendee org.",
+      parameters: createMeetingSchema,
+      execute: async (input) =>
+        createMeeting(ctx, {
+          title: input.title,
+          startsAt: input.startsAt,
+          explanation: input.explanation,
+          ...(input.attendeeOrgKey !== undefined
+            ? { attendeeOrgKey: input.attendeeOrgKey }
+            : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        }),
+    }),
+    update_node: tool({
+      description:
+        "Update properties on any existing graph node by key (merge updates).",
+      parameters: updateNodeSchema,
+      execute: async (input) => updateNode(ctx, input),
     }),
   };
 }
