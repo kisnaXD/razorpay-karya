@@ -831,6 +831,18 @@ export async function fetchBom(id: string): Promise<BomDto> {
   return res.bom;
 }
 
+export type CreateBomBody = {
+  name: string;
+  skuKey: string;
+  components: Array<{ materialKey: string; qty: number; unit: string }>;
+  notes?: string;
+};
+
+export async function createBom(body: CreateBomBody): Promise<BomDto> {
+  const res = await apiPost<{ bom: BomDto }>("/v1/boms", body);
+  return res.bom;
+}
+
 export type WorkOrderDto = {
   _id: string;
   woNo: string;
@@ -883,5 +895,23 @@ export async function fetchWorkOrders(status?: string): Promise<WorkOrderDto[]> 
 
 export async function fetchWorkOrder(id: string): Promise<WorkOrderDto> {
   const res = await api<{ workOrder: WorkOrderDto }>(`/v1/work-orders/${id}`);
+  return res.workOrder;
+}
+
+export type CreateWorkOrderBody = {
+  bomId: string;
+  qty: number;
+  priority: "low" | "medium" | "high" | "urgent";
+  dueDate: string;
+  notes?: string;
+};
+
+export async function createWorkOrder(
+  body: CreateWorkOrderBody,
+): Promise<WorkOrderDto> {
+  const res = await apiPost<{ workOrder: WorkOrderDto }>(
+    "/v1/work-orders",
+    body,
+  );
   return res.workOrder;
 }

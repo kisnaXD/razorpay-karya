@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
@@ -8,11 +8,25 @@ import {
   EmptyState,
   FilterChip,
   PageHeader,
-  Tooltip,
   type Column,
 } from "@/components/ui";
-import { fetchBoms, type BomDto } from "@/lib/api";
+import {
+  api,
+  createBom,
+  fetchBoms,
+  type ApiNodeFull,
+  type BomDto,
+} from "@/lib/api";
 import { formatInr } from "@/lib/format";
+
+type BomComponentDraft = {
+  materialKey: string;
+  qty: string;
+  unit: string;
+};
+
+const INPUT_CLASS =
+  "w-full rounded-[var(--radius-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-signal";
 
 type BomStatus = "active" | "draft" | "inactive";
 type DetailTab = "components" | "operations" | "costing";
@@ -208,6 +222,28 @@ export function BomsPage({
   const [filter, setFilter] = useState<BomFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("components");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [skus, setSkus] = useState<ApiNodeFull[]>([]);
+  const [materials, setMaterials] = useState<ApiNodeFull[]>([]);
+  const [formName, setFormName] = useState("");
+  const [formSkuKey, setFormSkuKey] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [formComponents, setFormComponents] = useState<BomComponentDraft[]>([
+    { materialKey: "", qty: "1", unit: "Nos" },
+  ]);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const reload = () => {
+    setLoading(true);
+    setError(null);
+    return fetchBoms()
+      .then((data) => setBoms(data))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Failed to load BOMs");
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -229,6 +265,71 @@ export function BomsPage({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    Promise.all([
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=SKU"),
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=Material"),
+    ])
+      .then(([skuRes, materialRes]) => {
+        if (cancelled) return;
+        setSkus(skuRes.nodes);
+        setMaterials(materialRes.nodes);
+        setFormSkuKey((prev) => prev || skuRes.nodes[0]?.key || "");
+        setFormName((prev) => prev || skuRes.nodes[0]?.label || "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load items for the form");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen]);
+
+  const resetCreateForm = () => {
+    setFormName("");
+    setFormSkuKey("");
+    setFormNotes("");
+    setFormComponents([{ materialKey: "", qty: "1", unit: "Nos" }]);
+    setFormError(null);
+  };
+
+  const onSubmitCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    const components = formComponents
+      .map((c) => ({
+        materialKey: c.materialKey,
+        qty: Number(c.qty),
+        unit: c.unit.trim() || "Nos",
+      }))
+      .filter((c) => c.materialKey && Number.isFinite(c.qty) && c.qty > 0);
+
+    if (!formName.trim() || !formSkuKey || components.length === 0) {
+      setFormError("Name, SKU, and at least one component are required");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      const bom = await createBom({
+        name: formName.trim(),
+        skuKey: formSkuKey,
+        components,
+        ...(formNotes.trim() ? { notes: formNotes.trim() } : {}),
+      });
+      setCreateOpen(false);
+      resetCreateForm();
+      await reload();
+      setSelectedId(bom._id);
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : "Failed to create BOM");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const visible = useMemo(
     () => (filter === "all" ? boms : boms.filter((b) => b.status === filter)),
@@ -256,16 +357,16 @@ export function BomsPage({
         title="Bill of Materials"
         subtitle={loading ? "Loading…" : `${boms.length} BOMs`}
         trailing={
-          <Tooltip label="Coming soon">
-            <Button
-              variant="primary"
-              size="sm"
-              disabled
-              className="!pointer-events-auto"
-            >
-              + New BOM
-            </Button>
-          </Tooltip>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
+          >
+            + New BOM
+          </Button>
         }
       />
 
@@ -510,6 +611,224 @@ export function BomsPage({
             </div>
           </div>
         </section>
+      ) : null}
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-bom-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-[var(--radius-md)] border border-line bg-surface p-5 shadow-lg"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="create-bom-title"
+                  className="text-base font-medium text-text"
+                >
+                  Create BOM
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Define the finished SKU and its component materials.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <form className="space-y-4" onSubmit={onSubmitCreate}>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Name
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Diya Large BOM"
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  SKU
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formSkuKey}
+                  onChange={(e) => {
+                    const key = e.target.value;
+                    setFormSkuKey(key);
+                    const sku = skus.find((s) => s.key === key);
+                    if (sku && !formName.trim()) setFormName(sku.label);
+                  }}
+                  required
+                >
+                  <option value="">Select SKU…</option>
+                  {skus.map((sku) => (
+                    <option key={sku.key} value={sku.key}>
+                      {sku.label} ({sku.key})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider text-muted">
+                    Components
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setFormComponents((prev) => [
+                        ...prev,
+                        { materialKey: "", qty: "1", unit: "Nos" },
+                      ])
+                    }
+                  >
+                    + Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {formComponents.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-[1fr_80px_70px_auto] gap-2"
+                    >
+                      <select
+                        className={INPUT_CLASS}
+                        value={row.materialKey}
+                        onChange={(e) => {
+                          const materialKey = e.target.value;
+                          const material =
+                            materials.find((m) => m.key === materialKey) ??
+                            skus.find((s) => s.key === materialKey);
+                          const uom =
+                            typeof material?.props.uom === "string"
+                              ? material.props.uom
+                              : material?.type === "SKU"
+                                ? "Nos"
+                                : row.unit;
+                          setFormComponents((prev) =>
+                            prev.map((c, i) =>
+                              i === idx
+                                ? { ...c, materialKey, unit: uom }
+                                : c,
+                            ),
+                          );
+                        }}
+                        required
+                      >
+                        <option value="">Material…</option>
+                        {materials.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            {m.label}
+                          </option>
+                        ))}
+                        {skus.map((s) => (
+                          <option key={`comp-${s.key}`} value={s.key}>
+                            {s.label} (SKU)
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className={INPUT_CLASS}
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.qty}
+                        onChange={(e) =>
+                          setFormComponents((prev) =>
+                            prev.map((c, i) =>
+                              i === idx ? { ...c, qty: e.target.value } : c,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <input
+                        className={INPUT_CLASS}
+                        value={row.unit}
+                        onChange={(e) =>
+                          setFormComponents((prev) =>
+                            prev.map((c, i) =>
+                              i === idx ? { ...c, unit: e.target.value } : c,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={formComponents.length <= 1}
+                        onClick={() =>
+                          setFormComponents((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          )
+                        }
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Notes
+                </span>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[72px] resize-y`}
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Optional notes"
+                />
+              </label>
+
+              {formError ? (
+                <p className="text-sm text-risk">{formError}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating…" : "Create BOM"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </div>
   );

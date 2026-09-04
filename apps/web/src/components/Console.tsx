@@ -105,14 +105,6 @@ const VIEW_BREADCRUMB: Record<ConsoleView, string[]> = {
   inbox: ["Operations", "Inbox"],
 };
 
-function ComingSoon() {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PageHeader title="Coming Soon" subtitle="This module is being built" />
-    </div>
-  );
-}
-
 function InboxView() {
   const { graph, selectedNodeKey, focusNode } = useConsole();
   const { sendMessage, requestOpenDock } = useAgent();
@@ -259,7 +251,7 @@ function CanvasBody({
     case "boms":
       return <BomsPage onNavigate={onNavigate} />;
     default:
-      return <ComingSoon />;
+      return <DashboardPage onNavigate={onNavigate} />;
   }
 }
 

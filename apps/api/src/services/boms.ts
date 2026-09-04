@@ -38,6 +38,7 @@ export type BomRecord = {
   rawMaterialCostPaise: number;
   operationCostPaise: number;
   totalCostPaise: number;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -53,6 +54,7 @@ export type CreateBomInput = {
   rawMaterialCostPaise?: number;
   operationCostPaise?: number;
   totalCostPaise?: number;
+  notes?: string | null;
 };
 
 export type UpdateBomInput = Partial<{
@@ -172,6 +174,7 @@ export async function createBom(
     lines,
     operations,
     ...costs,
+    notes: input.notes ?? null,
     createdAt: now,
     updatedAt: now,
   };

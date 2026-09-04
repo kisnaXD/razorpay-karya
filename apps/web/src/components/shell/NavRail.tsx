@@ -77,11 +77,9 @@ export function NavRail({
               ) : index > 0 ? (
                 <div className="mx-2 my-1.5 h-px bg-line" />
               ) : null}
-              {items.map(({ id, label, Icon, enabled }) => {
+              {items.map(({ id, label, Icon }) => {
                 const view = NAV_VIEW_MAP[id];
                 const active = view === activeView;
-                const disabled = !enabled;
-                const tooltip = disabled ? "Coming soon" : label;
 
                 return (
                   <button
@@ -89,8 +87,6 @@ export function NavRail({
                     type="button"
                     aria-label={label}
                     aria-current={active ? "page" : undefined}
-                    aria-disabled={disabled || undefined}
-                    disabled={disabled}
                     onClick={() => {
                       if (view) onNavigate(view);
                     }}
@@ -100,11 +96,8 @@ export function NavRail({
                       expanded ? "w-full px-3" : "w-full justify-center px-0",
                       active
                         ? "border-l-signal bg-signal/10 text-signal"
-                        : disabled
-                          ? "border-l-transparent text-muted/50"
-                          : "border-l-transparent text-muted hover:text-text",
+                        : "border-l-transparent text-muted hover:text-text",
                     ].join(" ")}
-                    tabIndex={disabled ? -1 : 0}
                   >
                     <span className="relative shrink-0">
                       <Icon />
@@ -119,7 +112,7 @@ export function NavRail({
                     ) : null}
                     {!expanded ? (
                       <span className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 -translate-y-1/2 whitespace-nowrap rounded border border-line bg-surface-2 px-2 py-1 text-[12px] text-text opacity-0 transition-all duration-200 group-hover:opacity-100">
-                        {tooltip}
+                        {label}
                       </span>
                     ) : null}
                   </button>

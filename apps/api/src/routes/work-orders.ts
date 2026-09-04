@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { getBom } from "../services/boms.js";
 import {
   InvalidJobCardStatusTransitionError,
   InvalidWoStatusTransitionError,
@@ -25,6 +26,7 @@ const woStatusSchema = z.enum([
 ]);
 
 const prioritySchema = z.enum(["low", "normal", "high", "urgent"]);
+const uiPrioritySchema = z.enum(["low", "medium", "high", "urgent", "normal"]);
 
 const materialStatusSchema = z.enum([
   "available",
@@ -82,6 +84,14 @@ const createBodySchema = z.object({
   plannedOperationCostPaise: z.number().int().nonnegative().optional(),
 });
 
+const simpleCreateBodySchema = z.object({
+  bomId: z.string().min(1),
+  qty: z.number().positive(),
+  priority: uiPrioritySchema,
+  dueDate: z.string().min(1),
+  notes: z.string().optional(),
+});
+
 const statusBodySchema = z.object({
   status: woStatusSchema,
 });
@@ -90,6 +100,10 @@ const jobCardStatusBodySchema = z.object({
   status: jobCardStatusSchema,
   completedQty: z.number().nonnegative().optional(),
 });
+
+function mapPriority(priority: z.infer<typeof uiPrioritySchema>): Priority {
+  return priority === "medium" ? "normal" : priority;
+}
 
 export const workOrdersRoutes: FastifyPluginAsync = async (app) => {
   app.get<{
@@ -138,49 +152,79 @@ export const workOrdersRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.post<{ Body: z.infer<typeof createBodySchema> }>(
-    "/v1/work-orders",
-    async (request, reply) => {
-      const parsed = createBodySchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({ error: "invalid_body" });
+  app.post("/v1/work-orders", async (request, reply) => {
+    const simple = simpleCreateBodySchema.safeParse(request.body);
+    if (simple.success) {
+      const d = simple.data;
+      const bom = await getBom(app.db, request.orgId, d.bomId);
+      if (!bom) {
+        return reply.code(404).send({ error: "bom_not_found" });
       }
-      const d = parsed.data;
       const workOrder = await createWorkOrder(app.db, request.orgId, {
-        itemKey: d.itemKey,
-        itemName: d.itemName,
-        quantity: d.quantity,
-        ...(d.bomId !== undefined ? { bomId: d.bomId } : {}),
-        ...(d.bomNo !== undefined ? { bomNo: d.bomNo } : {}),
-        ...(d.uom !== undefined ? { uom: d.uom } : {}),
-        ...(d.priority !== undefined ? { priority: d.priority } : {}),
-        ...(d.materialStatus !== undefined
-          ? { materialStatus: d.materialStatus }
-          : {}),
-        ...(d.materialNote !== undefined
-          ? { materialNote: d.materialNote }
-          : {}),
-        ...(d.plannedStartDate !== undefined
-          ? { plannedStartDate: d.plannedStartDate }
-          : {}),
-        ...(d.plannedEndDate !== undefined
-          ? { plannedEndDate: d.plannedEndDate }
-          : {}),
-        ...(d.salesOrderKey !== undefined
-          ? { salesOrderKey: d.salesOrderKey }
-          : {}),
-        ...(d.materials !== undefined ? { materials: d.materials } : {}),
-        ...(d.jobCards !== undefined ? { jobCards: d.jobCards } : {}),
-        ...(d.plannedMaterialCostPaise !== undefined
-          ? { plannedMaterialCostPaise: d.plannedMaterialCostPaise }
-          : {}),
-        ...(d.plannedOperationCostPaise !== undefined
-          ? { plannedOperationCostPaise: d.plannedOperationCostPaise }
-          : {}),
+        itemKey: bom.itemKey,
+        itemName: bom.itemName,
+        bomId: bom._id,
+        bomNo: bom.bomNo,
+        quantity: d.qty,
+        uom: bom.uom,
+        priority: mapPriority(d.priority),
+        plannedEndDate: d.dueDate,
+        ...(d.notes !== undefined ? { materialNote: d.notes } : {}),
+        materials: bom.lines.map((line) => ({
+          itemKey: line.itemKey,
+          itemName: line.itemName,
+          requiredQty: line.quantity * d.qty,
+          transferredQty: 0,
+          consumedQty: 0,
+          availableQty: 0,
+          uom: line.uom,
+          ratePaise: line.ratePaise,
+        })),
+        plannedMaterialCostPaise: bom.rawMaterialCostPaise * d.qty,
+        plannedOperationCostPaise: bom.operationCostPaise * d.qty,
       });
       return reply.code(201).send({ workOrder });
-    },
-  );
+    }
+
+    const parsed = createBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid_body" });
+    }
+    const d = parsed.data;
+    const workOrder = await createWorkOrder(app.db, request.orgId, {
+      itemKey: d.itemKey,
+      itemName: d.itemName,
+      quantity: d.quantity,
+      ...(d.bomId !== undefined ? { bomId: d.bomId } : {}),
+      ...(d.bomNo !== undefined ? { bomNo: d.bomNo } : {}),
+      ...(d.uom !== undefined ? { uom: d.uom } : {}),
+      ...(d.priority !== undefined ? { priority: d.priority } : {}),
+      ...(d.materialStatus !== undefined
+        ? { materialStatus: d.materialStatus }
+        : {}),
+      ...(d.materialNote !== undefined
+        ? { materialNote: d.materialNote }
+        : {}),
+      ...(d.plannedStartDate !== undefined
+        ? { plannedStartDate: d.plannedStartDate }
+        : {}),
+      ...(d.plannedEndDate !== undefined
+        ? { plannedEndDate: d.plannedEndDate }
+        : {}),
+      ...(d.salesOrderKey !== undefined
+        ? { salesOrderKey: d.salesOrderKey }
+        : {}),
+      ...(d.materials !== undefined ? { materials: d.materials } : {}),
+      ...(d.jobCards !== undefined ? { jobCards: d.jobCards } : {}),
+      ...(d.plannedMaterialCostPaise !== undefined
+        ? { plannedMaterialCostPaise: d.plannedMaterialCostPaise }
+        : {}),
+      ...(d.plannedOperationCostPaise !== undefined
+        ? { plannedOperationCostPaise: d.plannedOperationCostPaise }
+        : {}),
+    });
+    return reply.code(201).send({ workOrder });
+  });
 
   app.post<{
     Params: { id: string };

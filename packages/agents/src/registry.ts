@@ -24,6 +24,8 @@ export const SHARED_WRITE_TOOLS = [
   "record_payment",
   "create_meeting",
   "update_node",
+  "create_bom",
+  "create_work_order",
 ] as const;
 
 const FINANCE_TOOLS = [

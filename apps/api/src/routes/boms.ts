@@ -9,6 +9,7 @@ import {
   getBom,
   listBoms,
   updateBom,
+  type BomLine,
 } from "../services/boms.js";
 
 const bomLineSchema = z.object({
@@ -47,6 +48,22 @@ const createBodySchema = z.object({
   rawMaterialCostPaise: z.number().int().nonnegative().optional(),
   operationCostPaise: z.number().int().nonnegative().optional(),
   totalCostPaise: z.number().int().nonnegative().optional(),
+  notes: z.string().optional(),
+});
+
+const simpleCreateBodySchema = z.object({
+  name: z.string().min(1),
+  skuKey: z.string().min(1),
+  components: z
+    .array(
+      z.object({
+        materialKey: z.string().min(1),
+        qty: z.number().positive(),
+        unit: z.string().min(1),
+      }),
+    )
+    .min(1),
+  notes: z.string().optional(),
 });
 
 const updateBodySchema = z.object({
@@ -63,6 +80,18 @@ const updateBodySchema = z.object({
 });
 
 const statusSchema = z.enum(["draft", "active", "inactive"]);
+
+function inferItemType(itemKey: string): BomLine["itemType"] {
+  if (itemKey.startsWith("Packing:")) return "packing";
+  if (itemKey.startsWith("Consumable:")) return "consumable";
+  if (itemKey.startsWith("SKU:")) return "sub_assembly";
+  return "raw_material";
+}
+
+function labelFromKey(key: string): string {
+  const idx = key.indexOf(":");
+  return idx >= 0 ? key.slice(idx + 1) : key;
+}
 
 export const bomsRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Querystring: { status?: string } }>(
@@ -95,35 +124,55 @@ export const bomsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  app.post<{ Body: z.infer<typeof createBodySchema> }>(
-    "/v1/boms",
-    async (request, reply) => {
-      const parsed = createBodySchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({ error: "invalid_body" });
-      }
-      const d = parsed.data;
+  app.post("/v1/boms", async (request, reply) => {
+    const simple = simpleCreateBodySchema.safeParse(request.body);
+    if (simple.success) {
+      const d = simple.data;
+      const lines: BomLine[] = d.components.map((c, i) => ({
+        lineNo: i + 1,
+        itemKey: c.materialKey,
+        itemName: labelFromKey(c.materialKey),
+        itemType: inferItemType(c.materialKey),
+        quantity: c.qty,
+        uom: c.unit,
+        ratePaise: 0,
+        amountPaise: 0,
+      }));
       const bom = await createBom(app.db, request.orgId, {
-        itemKey: d.itemKey,
-        itemName: d.itemName,
-        ...(d.quantity !== undefined ? { quantity: d.quantity } : {}),
-        ...(d.uom !== undefined ? { uom: d.uom } : {}),
-        ...(d.isDefault !== undefined ? { isDefault: d.isDefault } : {}),
-        ...(d.lines !== undefined ? { lines: d.lines } : {}),
-        ...(d.operations !== undefined ? { operations: d.operations } : {}),
-        ...(d.rawMaterialCostPaise !== undefined
-          ? { rawMaterialCostPaise: d.rawMaterialCostPaise }
-          : {}),
-        ...(d.operationCostPaise !== undefined
-          ? { operationCostPaise: d.operationCostPaise }
-          : {}),
-        ...(d.totalCostPaise !== undefined
-          ? { totalCostPaise: d.totalCostPaise }
-          : {}),
+        itemKey: d.skuKey,
+        itemName: d.name,
+        lines,
+        ...(d.notes !== undefined ? { notes: d.notes } : {}),
       });
       return reply.code(201).send({ bom });
-    },
-  );
+    }
+
+    const parsed = createBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid_body" });
+    }
+    const d = parsed.data;
+    const bom = await createBom(app.db, request.orgId, {
+      itemKey: d.itemKey,
+      itemName: d.itemName,
+      ...(d.quantity !== undefined ? { quantity: d.quantity } : {}),
+      ...(d.uom !== undefined ? { uom: d.uom } : {}),
+      ...(d.isDefault !== undefined ? { isDefault: d.isDefault } : {}),
+      ...(d.lines !== undefined ? { lines: d.lines } : {}),
+      ...(d.operations !== undefined ? { operations: d.operations } : {}),
+      ...(d.rawMaterialCostPaise !== undefined
+        ? { rawMaterialCostPaise: d.rawMaterialCostPaise }
+        : {}),
+      ...(d.operationCostPaise !== undefined
+        ? { operationCostPaise: d.operationCostPaise }
+        : {}),
+      ...(d.totalCostPaise !== undefined
+        ? { totalCostPaise: d.totalCostPaise }
+        : {}),
+      ...(d.notes !== undefined ? { notes: d.notes } : {}),
+    });
+    return reply.code(201).send({ bom });
+  });
 
   app.patch<{
     Params: { id: string };

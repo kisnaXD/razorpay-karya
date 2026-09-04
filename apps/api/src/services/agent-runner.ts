@@ -34,6 +34,15 @@ import {
   rejectSalesOrder,
 } from "./sales.js";
 import {
+  createBom as createBomRecord,
+  getBom,
+  type BomLine,
+} from "./boms.js";
+import {
+  createWorkOrder as createWorkOrderRecord,
+  type Priority,
+} from "./work-orders.js";
+import {
   appendEntry,
   appendEntries,
   clearPending,
@@ -43,6 +52,24 @@ import {
   updateConsultEntry,
   updateToolEntry,
 } from "./agent-thread.js";
+
+function inferBomItemType(itemKey: string): BomLine["itemType"] {
+  if (itemKey.startsWith("Packing:")) return "packing";
+  if (itemKey.startsWith("Consumable:")) return "consumable";
+  if (itemKey.startsWith("SKU:")) return "sub_assembly";
+  return "raw_material";
+}
+
+function labelFromKey(key: string): string {
+  const idx = key.indexOf(":");
+  return idx >= 0 ? key.slice(idx + 1) : key;
+}
+
+function mapWoPriority(
+  priority: "low" | "medium" | "high" | "urgent" | "normal",
+): Priority {
+  return priority === "medium" ? "normal" : priority;
+}
 
 export type AgentStreamEvent =
   | { type: "thread"; thread: AgentThread }
@@ -177,6 +204,70 @@ function buildToolContext(
         tags: input.tags,
         source: { type: "agent", actor },
       }),
+    createBom: async (input) => {
+      const lines: BomLine[] = input.components.map((c, i) => ({
+        lineNo: i + 1,
+        itemKey: c.materialKey,
+        itemName: labelFromKey(c.materialKey),
+        itemType: inferBomItemType(c.materialKey),
+        quantity: c.qty,
+        uom: c.unit,
+        ratePaise: 0,
+        amountPaise: 0,
+      }));
+      const bom = await createBomRecord(db, orgId, {
+        itemKey: input.skuKey,
+        itemName: input.name,
+        lines,
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+      });
+      return {
+        _id: bom._id,
+        bomNo: bom.bomNo,
+        itemKey: bom.itemKey,
+        itemName: bom.itemName,
+        status: bom.status,
+      };
+    },
+    createWorkOrder: async (input) => {
+      const bom = await getBom(db, orgId, input.bomId);
+      if (!bom) throw new Error(`BOM not found: ${input.bomId}`);
+      const dueDays = input.dueDays ?? 7;
+      const dueDate = new Date(Date.now() + dueDays * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      const workOrder = await createWorkOrderRecord(db, orgId, {
+        itemKey: bom.itemKey,
+        itemName: bom.itemName,
+        bomId: bom._id,
+        bomNo: bom.bomNo,
+        quantity: input.qty,
+        uom: bom.uom,
+        priority: mapWoPriority(input.priority),
+        plannedEndDate: dueDate,
+        ...(input.notes !== undefined ? { materialNote: input.notes } : {}),
+        materials: bom.lines.map((line) => ({
+          itemKey: line.itemKey,
+          itemName: line.itemName,
+          requiredQty: line.quantity * input.qty,
+          transferredQty: 0,
+          consumedQty: 0,
+          availableQty: 0,
+          uom: line.uom,
+          ratePaise: line.ratePaise,
+        })),
+        plannedMaterialCostPaise: bom.rawMaterialCostPaise * input.qty,
+        plannedOperationCostPaise: bom.operationCostPaise * input.qty,
+      });
+      return {
+        _id: workOrder._id,
+        woNo: workOrder.woNo,
+        status: workOrder.status,
+        itemKey: workOrder.itemKey,
+        itemName: workOrder.itemName,
+        quantity: workOrder.quantity,
+      };
+    },
   };
 }
 

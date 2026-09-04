@@ -361,3 +361,36 @@ export const updateNodeSchema = z.object({
     .describe("Property updates to merge onto the node"),
   explanation: explanationField,
 });
+
+export const createBomSchema = z.object({
+  name: z.string().min(1).describe("BOM display name / finished item name"),
+  skuKey: z.string().min(1).describe('Finished SKU key, e.g. "SKU:Diya-Large"'),
+  components: z
+    .array(
+      z.object({
+        materialKey: z
+          .string()
+          .min(1)
+          .describe('Component key, e.g. "Material:BrassSheet-22g"'),
+        qty: z.number().positive(),
+        unit: z.string().min(1),
+      }),
+    )
+    .min(1),
+  notes: z.string().optional(),
+  explanation: explanationField,
+});
+
+export const createWorkOrderSchema = z.object({
+  bomId: z.string().min(1).describe("BOM document id"),
+  qty: z.number().positive(),
+  priority: z.enum(["low", "medium", "high", "urgent", "normal"]),
+  dueDays: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Days until due date (default 7)"),
+  notes: z.string().optional(),
+  explanation: explanationField,
+});

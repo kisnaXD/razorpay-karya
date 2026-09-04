@@ -219,4 +219,30 @@ export type ToolContext = {
     content: string;
     tags: string[];
   }>;
+  createBom?: (input: {
+    name: string;
+    skuKey: string;
+    components: Array<{ materialKey: string; qty: number; unit: string }>;
+    notes?: string;
+  }) => Promise<{
+    _id: string;
+    bomNo: string;
+    itemKey: string;
+    itemName: string;
+    status: string;
+  }>;
+  createWorkOrder?: (input: {
+    bomId: string;
+    qty: number;
+    priority: "low" | "medium" | "high" | "urgent" | "normal";
+    dueDays?: number;
+    notes?: string;
+  }) => Promise<{
+    _id: string;
+    woNo: string;
+    status: string;
+    itemKey: string;
+    itemName: string;
+    quantity: number;
+  }>;
 };

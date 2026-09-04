@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Badge,
   Button,
@@ -8,15 +8,22 @@ import {
   FilterChip,
   PageHeader,
   StatusDot,
-  Tooltip,
   type BadgeTone,
   type Column,
 } from "@/components/ui";
 import { formatInrExact } from "@/lib/format";
 import {
+  createWorkOrder,
+  fetchBoms,
   fetchWorkOrders,
+  type BomDto,
   type WorkOrderDto,
 } from "@/lib/api";
+
+const INPUT_CLASS =
+  "w-full rounded-[var(--radius-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-signal";
+
+type WoPriorityForm = "low" | "medium" | "high" | "urgent";
 
 type WoStatus =
   | "draft"
@@ -465,6 +472,34 @@ export function WorkOrdersPage({
   const [filter, setFilter] = useState<WoFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("materials");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [bomOptions, setBomOptions] = useState<BomDto[]>([]);
+  const [formBomId, setFormBomId] = useState("");
+  const [formQty, setFormQty] = useState("1");
+  const [formPriority, setFormPriority] = useState<WoPriorityForm>("medium");
+  const [formDueDate, setFormDueDate] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const loadOrders = () => {
+    setLoading(true);
+    setError(null);
+    return fetchWorkOrders()
+      .then((rows) => {
+        const mapped = rows.map(mapWorkOrder);
+        setOrders(mapped);
+        setSelectedId((prev) => {
+          if (prev && mapped.some((w) => w.id === prev)) return prev;
+          return mapped[0]?.id ?? null;
+        });
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load");
+        setOrders([]);
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -492,6 +527,63 @@ export function WorkOrdersPage({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    fetchBoms()
+      .then((rows) => {
+        if (cancelled) return;
+        setBomOptions(rows);
+        setFormBomId((prev) => prev || rows[0]?._id || "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load BOMs");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen]);
+
+  const resetCreateForm = () => {
+    setFormBomId("");
+    setFormQty("1");
+    setFormPriority("medium");
+    setFormDueDate("");
+    setFormNotes("");
+    setFormError(null);
+  };
+
+  const onSubmitCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    const qty = Number(formQty);
+    if (!formBomId || !Number.isFinite(qty) || qty <= 0 || !formDueDate) {
+      setFormError("BOM, quantity, and due date are required");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      const wo = await createWorkOrder({
+        bomId: formBomId,
+        qty,
+        priority: formPriority,
+        dueDate: formDueDate,
+        ...(formNotes.trim() ? { notes: formNotes.trim() } : {}),
+      });
+      setCreateOpen(false);
+      resetCreateForm();
+      await loadOrders();
+      setSelectedId(wo._id);
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create work order",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const summary = useMemo(() => {
     return {
@@ -527,11 +619,18 @@ export function WorkOrdersPage({
             : `${orders.length} order${orders.length === 1 ? "" : "s"}`
         }
         trailing={
-          <Tooltip label="Create work order — coming soon">
-            <Button size="sm" disabled>
-              + New Work Order
-            </Button>
-          </Tooltip>
+          <Button
+            size="sm"
+            onClick={() => {
+              resetCreateForm();
+              const inAWeek = new Date();
+              inAWeek.setDate(inAWeek.getDate() + 7);
+              setFormDueDate(inAWeek.toISOString().slice(0, 10));
+              setCreateOpen(true);
+            }}
+          >
+            + New Work Order
+          </Button>
         }
       />
 
@@ -839,6 +938,141 @@ export function WorkOrdersPage({
             </div>
           ) : null}
         </section>
+      ) : null}
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-wo-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-[var(--radius-md)] border border-line bg-surface p-5 shadow-lg"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="create-wo-title"
+                  className="text-base font-medium text-text"
+                >
+                  Create Work Order
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Plan production against an existing BOM.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <form className="space-y-4" onSubmit={onSubmitCreate}>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  BOM
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formBomId}
+                  onChange={(e) => setFormBomId(e.target.value)}
+                  required
+                >
+                  <option value="">Select BOM…</option>
+                  {bomOptions.map((bom) => (
+                    <option key={bom._id} value={bom._id}>
+                      {bom.bomNo} — {bom.itemName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1.5">
+                  <span className="text-xs uppercase tracking-wider text-muted">
+                    Quantity
+                  </span>
+                  <input
+                    className={INPUT_CLASS}
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formQty}
+                    onChange={(e) => setFormQty(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs uppercase tracking-wider text-muted">
+                    Priority
+                  </span>
+                  <select
+                    className={INPUT_CLASS}
+                    value={formPriority}
+                    onChange={(e) =>
+                      setFormPriority(e.target.value as WoPriorityForm)
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Due date
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="date"
+                  value={formDueDate}
+                  onChange={(e) => setFormDueDate(e.target.value)}
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Notes
+                </span>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[72px] resize-y`}
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Optional notes"
+                />
+              </label>
+
+              {formError ? (
+                <p className="text-sm text-risk">{formError}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={submitting}>
+                  {submitting ? "Creating…" : "Create Work Order"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </div>
   );

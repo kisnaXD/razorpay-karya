@@ -716,3 +716,77 @@ export async function updateNode(
     message: `Updated ${updated.key}: ${Object.keys(input.updates).join(", ")}`,
   };
 }
+
+export async function createBomTool(
+  ctx: ToolContext,
+  input: {
+    name: string;
+    skuKey: string;
+    components: Array<{ materialKey: string; qty: number; unit: string }>;
+    notes?: string;
+    explanation: string;
+  },
+) {
+  if (!ctx.createBom) {
+    throw new Error("create_bom is not available in this context");
+  }
+
+  const sku = await ctx.store.getNodeByKey(ctx.orgId, input.skuKey);
+  if (!sku || sku.type !== "SKU") {
+    throw new Error(`SKU not found: ${input.skuKey}`);
+  }
+
+  const bom = await ctx.createBom({
+    name: input.name,
+    skuKey: input.skuKey,
+    components: input.components,
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
+  });
+
+  void input.explanation;
+  return {
+    created: true,
+    bomId: bom._id,
+    bomNo: bom.bomNo,
+    itemKey: bom.itemKey,
+    itemName: bom.itemName,
+    status: bom.status,
+    message: `Created BOM ${bom.bomNo} for ${bom.itemKey} with ${input.components.length} component(s)`,
+  };
+}
+
+export async function createWorkOrderTool(
+  ctx: ToolContext,
+  input: {
+    bomId: string;
+    qty: number;
+    priority: "low" | "medium" | "high" | "urgent" | "normal";
+    dueDays?: number;
+    notes?: string;
+    explanation: string;
+  },
+) {
+  if (!ctx.createWorkOrder) {
+    throw new Error("create_work_order is not available in this context");
+  }
+
+  const workOrder = await ctx.createWorkOrder({
+    bomId: input.bomId,
+    qty: input.qty,
+    priority: input.priority,
+    ...(input.dueDays !== undefined ? { dueDays: input.dueDays } : {}),
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
+  });
+
+  void input.explanation;
+  return {
+    created: true,
+    workOrderId: workOrder._id,
+    woNo: workOrder.woNo,
+    status: workOrder.status,
+    itemKey: workOrder.itemKey,
+    itemName: workOrder.itemName,
+    quantity: workOrder.quantity,
+    message: `Created work order ${workOrder.woNo} for ${workOrder.quantity}× ${workOrder.itemName}`,
+  };
+}

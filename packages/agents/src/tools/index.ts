@@ -51,6 +51,7 @@ import { memoryRecord, memorySearch } from "./memory.js";
 import { generateReport } from "./report.js";
 import { rootCauseAnalysis } from "./root-cause.js";
 import {
+  createBomTool,
   createCustomer,
   createInvoice,
   createLead,
@@ -59,10 +60,12 @@ import {
   createSalesOrder,
   createSku,
   createVendor,
+  createWorkOrderTool,
   recordPayment,
   updateNode,
 } from "./create.js";
 import {
+  createBomSchema,
   createCustomerSchema,
   createInvoiceSchema,
   createLeadSchema,
@@ -71,6 +74,7 @@ import {
   createSalesOrderSchema,
   createSkuSchema,
   createVendorSchema,
+  createWorkOrderSchema,
   generateReportSchema,
   graphFindPathSchema,
   graphGetImpactSchema,
@@ -144,6 +148,8 @@ export const TOOL_SIDE_EFFECTS: Record<string, SideEffectClass> = {
   record_payment: "write",
   create_meeting: "write",
   update_node: "write",
+  create_bom: "write",
+  create_work_order: "write",
 };
 
 export function buildTools(ctx: ToolContext): Record<string, CoreTool> {
@@ -564,6 +570,33 @@ export function buildTools(ctx: ToolContext): Record<string, CoreTool> {
         "Update properties on any existing graph node by key (merge updates).",
       parameters: updateNodeSchema,
       execute: async (input) => updateNode(ctx, input),
+    }),
+    create_bom: tool({
+      description:
+        "Create a Bill of Materials for a finished SKU with component materials and quantities.",
+      parameters: createBomSchema,
+      execute: async (input) =>
+        createBomTool(ctx, {
+          name: input.name,
+          skuKey: input.skuKey,
+          components: input.components,
+          explanation: input.explanation,
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        }),
+    }),
+    create_work_order: tool({
+      description:
+        "Create a manufacturing work order from an existing BOM (qty, priority, due days).",
+      parameters: createWorkOrderSchema,
+      execute: async (input) =>
+        createWorkOrderTool(ctx, {
+          bomId: input.bomId,
+          qty: input.qty,
+          priority: input.priority,
+          explanation: input.explanation,
+          ...(input.dueDays !== undefined ? { dueDays: input.dueDays } : {}),
+          ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        }),
     }),
   };
 }
