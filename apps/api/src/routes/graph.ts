@@ -1,6 +1,17 @@
 import type { FastifyPluginAsync } from "fastify";
-import type { GraphStore, NodeRecord, NodeType } from "@karya/graph";
-import { NODE_TYPES, buildMorningBriefing } from "@karya/graph";
+import type {
+  EdgeType,
+  GraphStore,
+  NodeRecord,
+  NodeType,
+} from "@karya/graph";
+import {
+  EDGE_TYPES,
+  NODE_TYPES,
+  buildMorningBriefing,
+  newEdgeId,
+  newNodeId,
+} from "@karya/graph";
 
 function notFound(reply: { code: (n: number) => { send: (b: unknown) => unknown } }) {
   return reply.code(404).send({ error: "not found" });
@@ -48,6 +59,65 @@ export const graphRoutes: FastifyPluginAsync = async (app) => {
     }
     const nodes = await app.store.listNodes(orgId);
     return { nodes };
+  });
+
+  app.post("/v1/nodes", async (request, reply) => {
+    const body = request.body as {
+      type?: string;
+      key?: string;
+      label?: string;
+      props?: Record<string, string | number | boolean | null>;
+    };
+    if (!body.type || !body.key || !body.label) {
+      return reply.code(400).send({ error: "type, key, and label required" });
+    }
+    if (!NODE_TYPES.includes(body.type as NodeType)) {
+      return reply.code(400).send({ error: `invalid type: ${body.type}` });
+    }
+
+    const node = await app.store.upsertNode({
+      _id: newNodeId(),
+      orgId: request.orgId,
+      type: body.type as NodeType,
+      key: body.key,
+      label: body.label,
+      props: body.props ?? {},
+    });
+    return { node };
+  });
+
+  app.post("/v1/edges", async (request, reply) => {
+    const body = request.body as {
+      type?: string;
+      fromKey?: string;
+      toKey?: string;
+      props?: Record<string, string | number | boolean | null>;
+    };
+    if (!body.type || !body.fromKey || !body.toKey) {
+      return reply
+        .code(400)
+        .send({ error: "type, fromKey, and toKey required" });
+    }
+    if (!EDGE_TYPES.includes(body.type as EdgeType)) {
+      return reply.code(400).send({ error: `invalid type: ${body.type}` });
+    }
+
+    const from = await app.store.getNodeByKey(request.orgId, body.fromKey);
+    const to = await app.store.getNodeByKey(request.orgId, body.toKey);
+    if (!from || !to) {
+      return reply.code(404).send({ error: "from or to node not found" });
+    }
+
+    const edge = await app.store.writeEdge({
+      _id: newEdgeId(),
+      orgId: request.orgId,
+      type: body.type as EdgeType,
+      fromId: from._id,
+      toId: to._id,
+      props: body.props ?? {},
+      validFrom: new Date(),
+    });
+    return { edge };
   });
 
   app.get<{ Params: { key: string } }>("/v1/nodes/:key", async (request, reply) => {

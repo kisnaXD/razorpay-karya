@@ -19,8 +19,52 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { ...ORG_HEADER, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${path} ${res.status}`);
+  if (!res.ok) {
+    let detail = `${path} ${res.status}`;
+    try {
+      const errBody = (await res.json()) as { error?: string };
+      if (errBody.error) detail = errBody.error;
+    } catch {
+      // keep status message
+    }
+    throw new Error(detail);
+  }
   return res.json() as Promise<T>;
+}
+
+export function slugifyKey(name: string): string {
+  return name
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export type CreateNodeBody = {
+  type: string;
+  key: string;
+  label: string;
+  props?: Record<string, string | number | boolean | null>;
+};
+
+export async function createNode(
+  body: CreateNodeBody,
+): Promise<ApiNodeFull> {
+  const res = await apiPost<{ node: ApiNodeFull }>("/v1/nodes", body);
+  return res.node;
+}
+
+export type CreateEdgeBody = {
+  type: string;
+  fromKey: string;
+  toKey: string;
+  props?: Record<string, string | number | boolean | null>;
+};
+
+export async function createEdge(
+  body: CreateEdgeBody,
+): Promise<ApiEdge> {
+  const res = await apiPost<{ edge: ApiEdge }>("/v1/edges", body);
+  return res.edge;
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {

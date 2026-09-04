@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   api,
+  createEdge,
+  createNode,
   type ApiEdge,
   type ApiNodeFull,
 } from "@/lib/api";
@@ -18,6 +20,9 @@ import {
   StatusDot,
   type Column,
 } from "@/components/ui";
+
+const INPUT_CLASS =
+  "w-full rounded-[var(--radius-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-signal";
 
 type BillFilter = "all" | "unpaid" | "paid" | "overdue";
 
@@ -83,6 +88,14 @@ function statusLabel(status: Exclude<BillFilter, "all">): string {
   }
 }
 
+function propString(
+  props: ApiNodeFull["props"],
+  key: string,
+): string | null {
+  const value = props[key];
+  return typeof value === "string" ? value : null;
+}
+
 /** Purchase bills = Invoice nodes linked to a PurchaseOrder (not SalesOrder). */
 function buildPurchaseBillRows(
   invoices: ApiNodeFull[],
@@ -109,17 +122,30 @@ function buildPurchaseBillRows(
       }
     }
 
-    if (!po) continue;
+    // Also accept bills tagged via props.purchaseOrderKey without waiting for edge load
+    if (!po && typeof inv.props.purchaseOrderKey === "string") {
+      po = nodes.find((n) => n.key === inv.props.purchaseOrderKey) ?? null;
+      if (po && po.type !== "PurchaseOrder") po = null;
+    }
+
+    const isVendorBill = inv.props.bill === true;
+    if (!po && !isVendorBill) continue;
 
     let vendor = "—";
-    const contact = edges.find(
-      (e) => e.type === "CONTACT_AT" && e.toId === po!._id,
-    );
-    if (contact) {
-      vendor = nodeById.get(contact.fromId)?.label ?? "—";
-    } else if (typeof po.props.vendor_key === "string") {
-      const v = nodes.find((n) => n.key === po!.props.vendor_key);
-      vendor = v?.label ?? shortKey(po.props.vendor_key);
+    if (po) {
+      const contact = edges.find(
+        (e) => e.type === "CONTACT_AT" && e.toId === po!._id,
+      );
+      if (contact) {
+        vendor = nodeById.get(contact.fromId)?.label ?? "—";
+      } else if (typeof po.props.vendor_key === "string") {
+        const v = nodes.find((n) => n.key === po!.props.vendor_key);
+        vendor = v?.label ?? shortKey(po.props.vendor_key);
+      }
+    }
+    if (vendor === "—" && typeof inv.props.vendorOrgKey === "string") {
+      const v = nodes.find((n) => n.key === inv.props.vendorOrgKey);
+      vendor = v?.label ?? shortKey(String(inv.props.vendorOrgKey));
     }
 
     const status = normalizeBillStatus(String(inv.props.status ?? "unpaid"));
@@ -130,7 +156,7 @@ function buildPurchaseBillRows(
       key: inv.key,
       billNumber: shortKey(inv.key),
       vendor,
-      poReference: shortKey(po.key),
+      poReference: po ? shortKey(po.key) : "—",
       amountPaise:
         typeof inv.props.amountInPaise === "number"
           ? inv.props.amountInPaise
@@ -241,6 +267,16 @@ export function BillsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [vendors, setVendors] = useState<ApiNodeFull[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<ApiNodeFull[]>([]);
+  const [formBillNumber, setFormBillNumber] = useState("");
+  const [formVendorKey, setFormVendorKey] = useState("");
+  const [formAmount, setFormAmount] = useState("");
+  const [formDueDate, setFormDueDate] = useState("");
+  const [formPoKey, setFormPoKey] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -261,6 +297,105 @@ export function BillsPage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    Promise.all([
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=Org"),
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=PurchaseOrder"),
+    ])
+      .then(([orgsRes, posRes]) => {
+        if (cancelled) return;
+        const vend = orgsRes.nodes.filter(
+          (n) => propString(n.props, "role") === "vendor",
+        );
+        setVendors(vend);
+        setPurchaseOrders(posRes.nodes);
+        setFormVendorKey((prev) => prev || vend[0]?.key || "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load form options");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen]);
+
+  const resetCreateForm = () => {
+    setFormBillNumber("");
+    setFormVendorKey("");
+    setFormAmount("");
+    setFormDueDate("");
+    setFormPoKey("");
+    setFormError(null);
+  };
+
+  const onSubmitCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    const billNumber = formBillNumber.trim();
+    const amountRupees = Number(formAmount);
+    if (!billNumber || !formVendorKey) {
+      setFormError("Bill number and vendor are required");
+      return;
+    }
+    if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
+      setFormError("Amount must be greater than zero");
+      return;
+    }
+    if (!formDueDate) {
+      setFormError("Due date is required");
+      return;
+    }
+
+    const key = billNumber.includes(":")
+      ? billNumber
+      : `Invoice:${billNumber}`;
+    const label = shortKey(key);
+    const amountInPaise = Math.round(amountRupees * 100);
+    const dueAt = new Date(formDueDate).toISOString();
+
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await createNode({
+        type: "Invoice",
+        key,
+        label,
+        props: {
+          status: "unpaid",
+          amountInPaise,
+          dueAt,
+          issuedAt: new Date().toISOString(),
+          vendorOrgKey: formVendorKey,
+          bill: true,
+          ...(formPoKey ? { purchaseOrderKey: formPoKey } : {}),
+        },
+      });
+      await createEdge({
+        type: "ABOUT",
+        fromKey: key,
+        toKey: formVendorKey,
+      });
+      if (formPoKey) {
+        await createEdge({
+          type: "INVOICES",
+          fromKey: key,
+          toKey: formPoKey,
+        });
+      }
+      setCreateOpen(false);
+      resetCreateForm();
+      await load();
+      setSelectedKey(key);
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create bill",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const visible = useMemo(
     () => (filter === "all" ? rows : rows.filter((r) => r.status === filter)),
@@ -291,7 +426,22 @@ export function BillsPage({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Bills" subtitle={subtitle} />
+      <PageHeader
+        title="Bills"
+        subtitle={subtitle}
+        trailing={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
+          >
+            + New Bill
+          </Button>
+        }
+      />
       <div className="flex flex-wrap gap-2 border-b border-line px-5 py-3">
         {FILTERS.map((f) => (
           <FilterChip
@@ -319,6 +469,144 @@ export function BillsPage({
           emptyDescription="Vendor invoices linked to purchase orders will show up here."
         />
       )}
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-bill-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="create-bill-title"
+                  className="text-base font-medium text-text"
+                >
+                  New Bill
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Record a vendor bill, optionally linked to a PO.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <form className="space-y-4" onSubmit={onSubmitCreate}>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Bill Number
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  value={formBillNumber}
+                  onChange={(e) => setFormBillNumber(e.target.value)}
+                  placeholder="BILL-101"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Vendor
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formVendorKey}
+                  onChange={(e) => setFormVendorKey(e.target.value)}
+                  required
+                >
+                  <option value="">Select vendor…</option>
+                  {vendors.map((v) => (
+                    <option key={v.key} value={v.key}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Amount (₹)
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                  placeholder="15000"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Due Date
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="date"
+                  value={formDueDate}
+                  onChange={(e) => setFormDueDate(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  PO Reference (optional)
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formPoKey}
+                  onChange={(e) => setFormPoKey(e.target.value)}
+                >
+                  <option value="">None</option>
+                  {purchaseOrders.map((po) => (
+                    <option key={po.key} value={po.key}>
+                      {po.label || shortKey(po.key)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {formError ? (
+                <p className="text-sm text-risk">{formError}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating…" : "Create Bill"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

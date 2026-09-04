@@ -376,14 +376,14 @@ export function DashboardPage({
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onNavigate("new-invoice")}
+              onClick={() => onNavigate("invoices")}
             >
               New Invoice
             </Button>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onNavigate("new-po")}
+              onClick={() => onNavigate("purchase-orders")}
             >
               New PO
             </Button>

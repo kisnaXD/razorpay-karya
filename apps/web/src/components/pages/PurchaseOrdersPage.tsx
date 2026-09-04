@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  api,
+  createEdge,
+  createNode,
   fetchPendingApprovals,
   type ApiNodeFull,
   type ApprovalDto,
@@ -18,6 +21,9 @@ import {
   StatusDot,
   type Column,
 } from "@/components/ui";
+
+const INPUT_CLASS =
+  "w-full rounded-[var(--radius-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-signal";
 
 type PoFilter = "all" | "draft" | "pending" | "approved" | "received";
 
@@ -92,6 +98,14 @@ function statusLabel(status: PoStatus): string {
     case "received":
       return "Received";
   }
+}
+
+function propString(
+  props: ApiNodeFull["props"],
+  key: string,
+): string | null {
+  const value = props[key];
+  return typeof value === "string" ? value : null;
 }
 
 function enrichPoRow(node: ApiNodeFull, snapshot: GraphSnapshot): PoRow {
@@ -287,6 +301,17 @@ export function PurchaseOrdersPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [vendors, setVendors] = useState<ApiNodeFull[]>([]);
+  const [materials, setMaterials] = useState<ApiNodeFull[]>([]);
+  const [formPoNumber, setFormPoNumber] = useState("");
+  const [formVendorKey, setFormVendorKey] = useState("");
+  const [formMaterialKey, setFormMaterialKey] = useState("");
+  const [formQty, setFormQty] = useState("1");
+  const [formExpectedAt, setFormExpectedAt] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -324,6 +349,113 @@ export function PurchaseOrdersPage({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    Promise.all([
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=Org"),
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=Material"),
+    ])
+      .then(([orgsRes, materialsRes]) => {
+        if (cancelled) return;
+        const vend = orgsRes.nodes.filter(
+          (n) => propString(n.props, "role") === "vendor",
+        );
+        setVendors(vend);
+        setMaterials(materialsRes.nodes);
+        setFormVendorKey((prev) => prev || vend[0]?.key || "");
+        setFormMaterialKey((prev) => prev || materialsRes.nodes[0]?.key || "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load form options");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen]);
+
+  const resetCreateForm = () => {
+    setFormPoNumber("");
+    setFormVendorKey("");
+    setFormMaterialKey("");
+    setFormQty("1");
+    setFormExpectedAt("");
+    setFormNotes("");
+    setFormError(null);
+  };
+
+  const onSubmitCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    const poNumber = formPoNumber.trim();
+    const qty = Number(formQty);
+    if (!poNumber || !formVendorKey || !formMaterialKey) {
+      setFormError("PO number, vendor, and material are required");
+      return;
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setFormError("Quantity must be greater than zero");
+      return;
+    }
+    if (!formExpectedAt) {
+      setFormError("Expected delivery date is required");
+      return;
+    }
+
+    const key = poNumber.includes(":")
+      ? poNumber
+      : `PurchaseOrder:${poNumber}`;
+    const label = shortKey(key);
+    const expectedAt = new Date(formExpectedAt).toISOString();
+
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await createNode({
+        type: "PurchaseOrder",
+        key,
+        label,
+        props: {
+          status: "open",
+          expectedAt,
+          qty,
+          vendor_key: formVendorKey,
+          material_key: formMaterialKey,
+          ...(formNotes.trim() ? { note: formNotes.trim() } : {}),
+        },
+      });
+      await createEdge({
+        type: "ORDER_CONTAINS",
+        fromKey: key,
+        toKey: formMaterialKey,
+        props: { qty, uom: "kg" },
+      });
+      await createEdge({
+        type: "CONTACT_AT",
+        fromKey: formVendorKey,
+        toKey: key,
+      });
+      try {
+        await createEdge({
+          type: "SUPPLIES",
+          fromKey: formVendorKey,
+          toKey: formMaterialKey,
+        });
+      } catch {
+        // SUPPLIES may already exist
+      }
+      setCreateOpen(false);
+      resetCreateForm();
+      await load();
+      setSelectedKey(key);
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create purchase order",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const visible = useMemo(
     () => (filter === "all" ? rows : rows.filter((r) => r.status === filter)),
     [rows, filter],
@@ -357,7 +489,14 @@ export function PurchaseOrdersPage({
         title="Purchase Orders"
         subtitle={subtitle}
         trailing={
-          <Button size="sm" onClick={() => onNavigate("purchase-orders/new")}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
+          >
             + New PO
           </Button>
         }
@@ -389,6 +528,155 @@ export function PurchaseOrdersPage({
           emptyDescription="Draft or approve a PO to see it listed here."
         />
       )}
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-po-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="create-po-title"
+                  className="text-base font-medium text-text"
+                >
+                  New Purchase Order
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Order material from a vendor.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <form className="space-y-4" onSubmit={onSubmitCreate}>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  PO Number
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  value={formPoNumber}
+                  onChange={(e) => setFormPoNumber(e.target.value)}
+                  placeholder="PO-109"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Vendor
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formVendorKey}
+                  onChange={(e) => setFormVendorKey(e.target.value)}
+                  required
+                >
+                  <option value="">Select vendor…</option>
+                  {vendors.map((v) => (
+                    <option key={v.key} value={v.key}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Material
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formMaterialKey}
+                  onChange={(e) => setFormMaterialKey(e.target.value)}
+                  required
+                >
+                  <option value="">Select material…</option>
+                  {materials.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Quantity
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={formQty}
+                  onChange={(e) => setFormQty(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Expected Delivery Date
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="date"
+                  value={formExpectedAt}
+                  onChange={(e) => setFormExpectedAt(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Notes
+                </span>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[72px] resize-y`}
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Optional notes"
+                />
+              </label>
+
+              {formError ? (
+                <p className="text-sm text-risk">{formError}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating…" : "Create PO"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

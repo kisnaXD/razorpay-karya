@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, type ApiNodeFull } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  api,
+  createEdge,
+  createNode,
+  type ApiNodeFull,
+} from "@/lib/api";
 import { formatInr } from "@/lib/format";
 import {
   Badge,
@@ -12,6 +17,9 @@ import {
   StatusDot,
   type Column,
 } from "@/components/ui";
+
+const INPUT_CLASS =
+  "w-full rounded-[var(--radius-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-signal";
 
 type SalesOrderRow = {
   key: string;
@@ -83,7 +91,10 @@ function buildInvoiceRows(
   return invoices.map((inv) => ({
     key: inv.key,
     number: invoiceNumber(inv.key, inv.label),
-    customer: customerByInvoice.get(inv.key) ?? null,
+    customer:
+      customerByInvoice.get(inv.key) ??
+      propString(inv.props, "customerOrgKey") ??
+      null,
     date: propString(inv.props, "issuedAt") ?? propString(inv.props, "dueAt"),
     amountPaise: propNumber(inv.props, "amountInPaise"),
     status: propString(inv.props, "status") ?? "draft",
@@ -183,6 +194,19 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
   const [statusFilter, setStatusFilter] =
     useState<(typeof STATUS_FILTERS)[number]>("All");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [customers, setCustomers] = useState<ApiNodeFull[]>([]);
+  const [salesOrders, setSalesOrders] = useState<
+    Array<{ key: string; label: string }>
+  >([]);
+  const [formNumber, setFormNumber] = useState("");
+  const [formCustomerKey, setFormCustomerKey] = useState("");
+  const [formAmount, setFormAmount] = useState("");
+  const [formDueDate, setFormDueDate] = useState("");
+  const [formSalesOrderKey, setFormSalesOrderKey] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +229,103 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    Promise.all([
+      api<{ nodes: ApiNodeFull[] }>("/v1/nodes?type=Org"),
+      api<{
+        orders: Array<{ key: string; label: string }>;
+      }>("/v1/sales/orders"),
+    ])
+      .then(([orgsRes, ordersRes]) => {
+        if (cancelled) return;
+        const custs = orgsRes.nodes.filter(
+          (n) => propString(n.props, "role") === "customer",
+        );
+        setCustomers(custs);
+        setSalesOrders(ordersRes.orders);
+        setFormCustomerKey((prev) => prev || custs[0]?.key || "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Could not load form options");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createOpen]);
+
+  const resetCreateForm = () => {
+    setFormNumber("");
+    setFormCustomerKey("");
+    setFormAmount("");
+    setFormDueDate("");
+    setFormSalesOrderKey("");
+    setFormNotes("");
+    setFormError(null);
+  };
+
+  const onSubmitCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    const number = formNumber.trim();
+    const amountRupees = Number(formAmount);
+    if (!number || !formCustomerKey || !Number.isFinite(amountRupees) || amountRupees <= 0) {
+      setFormError("Invoice number, customer, and amount are required");
+      return;
+    }
+    if (!formDueDate) {
+      setFormError("Due date is required");
+      return;
+    }
+
+    const amountInPaise = Math.round(amountRupees * 100);
+    const dueAt = new Date(formDueDate).toISOString();
+    const key = `Invoice:${number}`;
+
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await createNode({
+        type: "Invoice",
+        key,
+        label: number,
+        props: {
+          status: "sent",
+          amountInPaise,
+          dueAt,
+          issuedAt: new Date().toISOString(),
+          nudge_count: 0,
+          collections_state: "awaiting",
+          customerOrgKey: formCustomerKey,
+          ...(formNotes.trim() ? { note: formNotes.trim() } : {}),
+          ...(formSalesOrderKey ? { salesOrderKey: formSalesOrderKey } : {}),
+        },
+      });
+      await createEdge({
+        type: "ABOUT",
+        fromKey: key,
+        toKey: formCustomerKey,
+      });
+      if (formSalesOrderKey) {
+        await createEdge({
+          type: "INVOICES",
+          fromKey: key,
+          toKey: formSalesOrderKey,
+        });
+      }
+      setCreateOpen(false);
+      resetCreateForm();
+      await load();
+      setSelectedKey(key);
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? err.message : "Failed to create invoice",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     if (statusFilter === "All") return rows;
     const target = statusFilter.toLowerCase();
@@ -219,7 +340,14 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
         title="Invoices"
         subtitle={`${rows.length} ${rows.length === 1 ? "invoice" : "invoices"}`}
         trailing={
-          <Button size="sm" onClick={() => onNavigate("ledger")}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
+          >
             + New Invoice
           </Button>
         }
@@ -326,6 +454,155 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
             </div>
           ) : null}
         </aside>
+      ) : null}
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-invoice-title"
+            className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface p-5 shadow-xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="create-invoice-title"
+                  className="text-base font-medium text-text"
+                >
+                  New Invoice
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Bill a customer for goods or services.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setCreateOpen(false);
+                  resetCreateForm();
+                }}
+              >
+                Close
+              </Button>
+            </div>
+
+            <form className="space-y-4" onSubmit={onSubmitCreate}>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Invoice Number
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  value={formNumber}
+                  onChange={(e) => setFormNumber(e.target.value)}
+                  placeholder="INV-100"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Customer
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formCustomerKey}
+                  onChange={(e) => setFormCustomerKey(e.target.value)}
+                  required
+                >
+                  <option value="">Select customer…</option>
+                  {customers.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Amount (₹)
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                  placeholder="25000"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Due Date
+                </span>
+                <input
+                  className={INPUT_CLASS}
+                  type="date"
+                  value={formDueDate}
+                  onChange={(e) => setFormDueDate(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Sales Order (optional)
+                </span>
+                <select
+                  className={INPUT_CLASS}
+                  value={formSalesOrderKey}
+                  onChange={(e) => setFormSalesOrderKey(e.target.value)}
+                >
+                  <option value="">None</option>
+                  {salesOrders.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label || o.key}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs uppercase tracking-wider text-muted">
+                  Notes
+                </span>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[72px] resize-y`}
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Optional notes"
+                />
+              </label>
+
+              {formError ? (
+                <p className="text-sm text-risk">{formError}</p>
+              ) : null}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating…" : "Create Invoice"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </div>
   );
